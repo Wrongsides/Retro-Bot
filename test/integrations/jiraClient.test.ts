@@ -73,8 +73,9 @@ describe("JiraClient.createNull", () => {
 
     const requests = client.trackRequests();
     expect(requests).toHaveLength(1);
-    expect(requests[0].method).toBe("GET");
-    expect(requests[0].url).toContain(encodeURIComponent("project = RETRO AND status != Done"));
+    expect(requests[0].method).toBe("POST");
+    expect(requests[0].url).toContain("/rest/api/3/search/jql");
+    expect(requests[0].body).toMatchObject({ jql: "project = RETRO AND status != Done" });
   });
 
   test("tracks outgoing create-issue requests with the submitted summary", async () => {

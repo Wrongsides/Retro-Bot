@@ -46,8 +46,8 @@ describe("buildRetroOverview", () => {
 
     const requests = jiraClient.trackRequests();
     expect(requests).toHaveLength(1);
-    expect(requests[0].url).toContain(encodeURIComponent('project = "RETRO"'));
-    expect(requests[0].url).toContain(encodeURIComponent('updated >= "2026-09-10"'));
+    expect(requests[0].body).toMatchObject({ jql: expect.stringContaining('project = "RETRO"') });
+    expect(requests[0].body).toMatchObject({ jql: expect.stringContaining('updated >= "2026-09-10"') });
   });
 
   test("uses a supplied project key and board id instead of the defaults", async () => {
@@ -59,6 +59,6 @@ describe("buildRetroOverview", () => {
     const miroRequests = miroClient.trackRequests();
     const jiraRequests = jiraClient.trackRequests();
     expect(miroRequests[0].url).toContain("/boards/board-9/items");
-    expect(jiraRequests[0].url).toContain(encodeURIComponent('project = "TEAM"'));
+    expect(jiraRequests[0].body).toMatchObject({ jql: expect.stringContaining('project = "TEAM"') });
   });
 });

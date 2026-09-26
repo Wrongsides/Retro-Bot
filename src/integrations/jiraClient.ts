@@ -58,7 +58,7 @@ function defaultNullResponses(options: JiraClientNullOptions): ResponseMap {
   let counter = 102;
 
   return {
-    "GET /rest/api/3/search": {
+    "POST /rest/api/3/search/jql": {
       body: {
         issues: issues.map((issue) => ({
           key: issue.key,
@@ -91,11 +91,12 @@ export class JiraClient {
   }
 
   async searchIssues(jql: string): Promise<JiraIssue[]> {
-    const url = `${this.baseUrl}/rest/api/3/search?jql=${encodeURIComponent(jql)}`;
+    const url = `${this.baseUrl}/rest/api/3/search/jql`;
     const response = await this.http.request<JiraSearchResponseBody>({
-      method: "GET",
+      method: "POST",
       url,
-      headers: { Authorization: authHeader(), Accept: "application/json" },
+      headers: { Authorization: authHeader(), Accept: "application/json", "Content-Type": "application/json" },
+      body: { jql },
     });
     if (!response.ok) {
       throw new Error(`Jira search failed: ${response.status}`);
