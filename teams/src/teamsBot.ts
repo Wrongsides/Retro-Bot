@@ -1,5 +1,5 @@
 import { TeamsActivityHandler, TurnContext } from "botbuilder";
-import { callMcpTool, listMcpTools } from "./mcpClient.js";
+import { McpClient } from "./mcpClient.js";
 
 /**
  * Minimal Teams bot used to verify Bot Framework <-> Teams permissions/wiring,
@@ -13,7 +13,7 @@ import { callMcpTool, listMcpTools } from "./mcpClient.js";
  *  - anything else    -> echoes back with usage help
  */
 export class TeamsRetroBot extends TeamsActivityHandler {
-  constructor() {
+  constructor(private readonly mcpClient: McpClient = McpClient.create()) {
     super();
 
     this.onMessage(async (context: TurnContext, next) => {
@@ -21,15 +21,15 @@ export class TeamsRetroBot extends TeamsActivityHandler {
 
       try {
         if (text === "tools") {
-          const tools = await listMcpTools();
+          const tools = await this.mcpClient.listTools();
           await context.sendActivity(
             tools.length > 0 ? `Available MCP tools:\n- ${tools.join("\n- ")}` : "No tools returned by the MCP server."
           );
         } else if (text === "create retro") {
-          const result = await callMcpTool("miro_create_retro", {});
+          const result = await this.mcpClient.callTool("miro_create_retro", {});
           await context.sendActivity(`miro_create_retro result:\n${result}`);
         } else if (text === "cycle overview") {
-          const result = await callMcpTool("cycle_overview", {});
+          const result = await this.mcpClient.callTool("cycle_overview", {});
           await context.sendActivity(`cycle_overview result:\n${result}`);
         } else {
           await context.sendActivity(
