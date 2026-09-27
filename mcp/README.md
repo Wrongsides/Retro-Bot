@@ -27,7 +27,7 @@ pattern) may be added later to front this server for a Teams bot.
 | `miro_get_retro_notes` | read | Read raw sticky-note content from a Miro retro board |
 | `miro_create_frame` | write | Create a Miro frame |
 | `miro_create_sticky_note` | write | Create a Miro sticky note |
-| `miro_create_retro` | write | Build an empty retro template (frames, columns, mood/dot-vote boxes, dated marker) on a Miro board |
+| `miro_create_retro` | write | Build an empty retro template (frames, columns, mood/dot-vote boxes, an Experiment Tracking box with a Go/No-Go on the previous experiment, dated marker) on a Miro board |
 | `cycle_overview` | read + write | Summarise Jira actions completed/in-progress since the previous retro, and write ticket summaries as sticky notes to a "Cycle overview" box below the current retro |
 | `github_list_open_issues` | read | List open issues in a GitHub repo |
 | `github_create_issue` | write | Create a GitHub issue for a technical retro action |

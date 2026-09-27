@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { HttpClient } from "../../src/clients/httpClient.js";
+import { HttpClient, retryDelayMs, shouldRetry } from "../../src/clients/httpClient.js";
 
 describe("HttpClient.createNull", () => {
   test("returns a configured static response for a matching request", async () => {
@@ -127,5 +127,50 @@ describe("HttpClient output tracking", () => {
     await client.request({ method: "GET", url: "https://example.test/widgets" });
 
     expect(requests).toHaveLength(1);
+  });
+});
+
+describe("shouldRetry", () => {
+  test("retries transient statuses (429, 5xx)", () => {
+    expect(shouldRetry(1, 429)).toBe(true);
+    expect(shouldRetry(1, 500)).toBe(true);
+    expect(shouldRetry(1, 502)).toBe(true);
+    expect(shouldRetry(1, 503)).toBe(true);
+    expect(shouldRetry(1, 504)).toBe(true);
+  });
+
+  test("retries network errors (no status given)", () => {
+    expect(shouldRetry(1, undefined)).toBe(true);
+  });
+
+  test("does not retry non-transient statuses", () => {
+    expect(shouldRetry(1, 200)).toBe(false);
+    expect(shouldRetry(1, 400)).toBe(false);
+    expect(shouldRetry(1, 404)).toBe(false);
+  });
+
+  test("stops retrying once the max attempt count is reached", () => {
+    expect(shouldRetry(4, 500)).toBe(false);
+    expect(shouldRetry(5, 500)).toBe(false);
+  });
+});
+
+describe("retryDelayMs", () => {
+  test("grows exponentially with the attempt number", () => {
+    const first = retryDelayMs(1);
+    const second = retryDelayMs(2);
+    const third = retryDelayMs(3);
+
+    expect(second).toBeGreaterThan(first);
+    expect(third).toBeGreaterThan(second);
+  });
+
+  test("honours a numeric Retry-After header over the exponential backoff", () => {
+    expect(retryDelayMs(1, "2")).toBe(2000);
+  });
+
+  test("ignores an invalid Retry-After header and falls back to exponential backoff", () => {
+    expect(retryDelayMs(1, "not-a-number")).toBeGreaterThan(0);
+    expect(retryDelayMs(1, "not-a-number")).not.toBe(NaN);
   });
 });

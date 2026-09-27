@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { addCycleOverviewToBoard, buildCycleOverview, type CycleOverview } from "../../src/tools/cycleOverviewTools.js";
-import { buildRetroTemplateLayout, cycleOverviewBoxLayout } from "../../src/domain/retroTemplate.js";
+import { buildRetroTemplateLayout, cycleOverviewBoxLayout, experimentBoxLayout } from "../../src/domain/retroTemplate.js";
 import { MiroClient } from "../../src/clients/miroClient.js";
 import { JiraClient } from "../../src/clients/jiraClient.js";
 
@@ -90,6 +90,26 @@ describe("addCycleOverviewToBoard", () => {
     expect(result).toEqual({ addedCount: 0 });
   });
 
+  test("places a new Cycle overview box below an existing Experiment Tracking box, not overlapping it", async () => {
+    const layout = buildRetroTemplateLayout(new Date("2026-09-26T00:00:00.000Z"));
+    const experiment = experimentBoxLayout(layout.frame);
+    const miroClient = MiroClient.createNull({
+      frames: [
+        { id: "frame-outer", title: layout.frame.title, x: layout.frame.x, y: layout.frame.y, width: layout.frame.width, height: layout.frame.height },
+        { id: "frame-experiment", title: experiment.frame.title, x: experiment.frame.x, y: experiment.frame.y, width: experiment.frame.width, height: experiment.frame.height },
+      ],
+    });
+
+    await addCycleOverviewToBoard(miroClient, overview);
+
+    const frameRequest = miroClient
+      .trackRequests()
+      .find((r) => r.url.includes("/frames") && r.method === "POST");
+    const experimentBottom = experiment.frame.y + experiment.frame.height / 2;
+    const body = frameRequest?.body as { position: { y: number }; geometry: { height: number } };
+    expect(body.position.y - body.geometry.height / 2).toBeGreaterThan(experimentBottom);
+  });
+
   test("reports the retro frame and creates a new Cycle overview box when none exists yet", async () => {
     const layout = buildRetroTemplateLayout(new Date("2026-09-26T00:00:00.000Z"));
     const miroClient = MiroClient.createNull({
@@ -121,8 +141,11 @@ describe("addCycleOverviewToBoard", () => {
 
     const requests = miroClient.trackRequests();
     const frameRequest = requests.find((r) => r.url.includes("/frames") && r.method === "POST");
-    // The box should sit directly below the latest retro frame, not the older one.
-    expect(frameRequest?.body).toMatchObject({ position: { x: latestLayout.frame.x } });
+    expect(frameRequest?.body).toMatchObject({
+      position: { x: latestLayout.frame.x, y: expect.any(Number) },
+    });
+    const positionY = (frameRequest?.body as { position: { y: number } }).position.y;
+    expect(positionY).toBeGreaterThan(latestLayout.frame.y + latestLayout.frame.height / 2);
 
     const stickyNoteRequests = requests.filter((r) => r.url.includes("/sticky_notes"));
     expect(stickyNoteRequests).toHaveLength(2);

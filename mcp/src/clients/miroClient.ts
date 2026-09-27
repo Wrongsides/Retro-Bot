@@ -86,6 +86,33 @@ function authHeader(): string {
   return `Bearer ${config.miro.accessToken}`;
 }
 
+function miroError(action: string, response: { status: number; data: unknown }): Error {
+  return new Error(`Miro ${action} failed: ${response.status} ${JSON.stringify(response.data)}`);
+}
+
+const NAMED_HTML_ENTITIES: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+};
+
+function decodeHtmlEntities(text: string): string {
+  return text.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (match, entity: string) => {
+    if (entity[0] === "#") {
+      const codePoint = entity[1].toLowerCase() === "x" ? parseInt(entity.slice(2), 16) : parseInt(entity.slice(1), 10);
+      return Number.isNaN(codePoint) ? match : String.fromCodePoint(codePoint);
+    }
+    return NAMED_HTML_ENTITIES[entity.toLowerCase()] ?? match;
+  });
+}
+
+function plainTextContent(htmlContent: string): string {
+  return decodeHtmlEntities(htmlContent.replace(/<[^>]*>/g, ""));
+}
+
 function defaultStickyNotes(): MiroStickyNote[] {
   return [
     { id: "1", content: "Deploys felt smoother this sprint thanks to the new pipeline", x: 0, y: 0 },
@@ -183,12 +210,12 @@ export class MiroClient {
         headers: { Authorization: authHeader(), Accept: "application/json" },
       });
       if (!response.ok) {
-        throw new Error(`Miro getBoardStickyNotes failed: ${response.status}`);
+        throw miroError("getBoardStickyNotes", response);
       }
       notes.push(
         ...response.data.data.map((item) => ({
           id: item.id,
-          content: item.data.content.replace(/<[^>]*>/g, ""),
+          content: plainTextContent(item.data.content),
           author: item.createdBy?.id,
           x: item.position.x,
           y: item.position.y,
@@ -216,7 +243,7 @@ export class MiroClient {
         headers: { Authorization: authHeader(), Accept: "application/json" },
       });
       if (!response.ok) {
-        throw new Error(`Miro getBoardFrames failed: ${response.status}`);
+        throw miroError("getBoardFrames", response);
       }
       frames.push(
         ...response.data.data.map((item) => ({
@@ -248,7 +275,7 @@ export class MiroClient {
       },
     });
     if (!response.ok) {
-      throw new Error(`Miro createFrame failed: ${response.status}`);
+      throw miroError("createFrame", response);
     }
     return { id: response.data.id, title: response.data.data.title };
   }
@@ -267,11 +294,11 @@ export class MiroClient {
       },
     });
     if (!response.ok) {
-      throw new Error(`Miro createStickyNote failed: ${response.status}`);
+      throw miroError("createStickyNote", response);
     }
     return {
       id: response.data.id,
-      content: response.data.data.content,
+      content: plainTextContent(response.data.data.content),
       x: response.data.position.x,
       y: response.data.position.y,
     };

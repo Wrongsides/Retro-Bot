@@ -24,9 +24,11 @@ Teams client ⇄ Azure Bot / Bot Framework ⇄ teams (MCP client) ⇄ mcp (MCP s
 - **`miro_create_retro`** — builds an empty retro template on a Miro board: an outer frame
   titled with the date, four columns (What went well? / What should we do differently? /
   What should we start doing? / Action items) each pre-seeded with a starter sticky-note
-  stack, a Mood box and a Dot Votes box with instructional stickies, and a dated marker
-  sticky so the next retro knows where the last one left off. New retros are auto-offset
-  below all existing ones on the board.
+  stack, a Mood box and a Dot Votes box with instructional stickies, an Experiment Tracking
+  box (a Go/No-Go prompt reviewing the previous retro's recorded experiment — e.g. "pairing
+  by default on tickets" — plus a fresh prompt for this sprint's experiment), and a dated
+  marker sticky so the next retro knows where the last one left off. New retros are
+  auto-offset below all existing ones on the board.
 - **`cycle_overview`** — reads the previous retro's date off the board, searches Jira for
   issues completed or still in progress since then, returns a text summary, *and* writes a
   sticky note per ticket into a dedicated "Cycle overview" box below the current retro frame

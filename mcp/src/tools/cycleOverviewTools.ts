@@ -6,6 +6,7 @@ import {
   cycleOverviewBoxLayout,
   cycleOverviewStickySlot,
   findCycleOverviewBox,
+  findExperimentBox,
   findLatestRetroFrame,
 } from "../domain/retroTemplate.js";
 import { jiraClient as defaultJiraClient, miroClient as defaultMiroClient } from "../clients/index.js";
@@ -82,7 +83,8 @@ export async function addCycleOverviewToBoard(
     const stickyNotes = await miroClient.getBoardStickyNotes(boardId);
     startIndex = stickyNotes.filter((note) => note.frameId === box!.id).length;
   } else {
-    const layout = cycleOverviewBoxLayout(retroFrame, items.length);
+    const belowFrame = findExperimentBox(frames, retroFrame) ?? retroFrame;
+    const layout = cycleOverviewBoxLayout(retroFrame, items.length, belowFrame);
     const created = await miroClient.createFrame({ ...layout, boardId });
     box = { ...created, x: layout.x, y: layout.y, width: layout.width, height: layout.height };
   }

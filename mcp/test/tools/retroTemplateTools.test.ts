@@ -29,7 +29,7 @@ describe("createRetroTemplate", () => {
         request.url.includes("/sticky_notes") && (request.body as { data?: { content?: string } })?.data?.content?.includes("Retro:"),
     );
     const frameRequests = requests.filter((request) => request.url.includes("/frames"));
-    expect(frameRequests).toHaveLength(7);
+    expect(frameRequests).toHaveLength(8);
     expect(markerRequest?.body).toMatchObject({ parent: { id: "frame-1" } });
   });
 
@@ -73,6 +73,68 @@ describe("createRetroTemplate", () => {
         (request) => (request.body as { parent?: { id: string } })?.parent?.id === template.dotVoteBox.id,
       ),
     ).toBe(true);
+  });
+
+  test("creates an Experiment Tracking box with a Go/No-Go prompt and a fresh experiment prompt", async () => {
+    const miroClient = MiroClient.createNull();
+
+    const template = await createRetroTemplate(miroClient, { date: new Date("2026-09-26T00:00:00.000Z") });
+
+    expect(template.experimentBox.title).toBe("Experiment Tracking");
+    expect(template.goNoGoSticky.content).toBe("No previous experiment recorded yet.");
+    expect(template.newExperimentSticky.content).toContain("This sprint's experiment:");
+    const requests = miroClient.trackRequests();
+    const stickyRequests = requests.filter((request) => request.url.includes("/sticky_notes"));
+    const experimentStickies = stickyRequests.filter(
+      (request) => (request.body as { parent?: { id: string } })?.parent?.id === template.experimentBox.id,
+    );
+    expect(experimentStickies).toHaveLength(2);
+  });
+
+  test("carries the previous retro's recorded experiment forward as a Go/No-Go prompt on the new retro", async () => {
+    const miroClient = MiroClient.createNull({
+      frames: [
+        { id: "frame-outer-old", title: "Retro - 2026-09-12", x: 0, y: 0, width: 2350, height: 1250 },
+        { id: "frame-experiment-old", title: "Experiment Tracking", x: 0, y: 1650, width: 478, height: 308 },
+      ],
+      stickyNotes: [
+        {
+          id: "sticky-experiment-old",
+          content: "🧪 This sprint's experiment:\nPairing by default on tickets",
+          x: 0,
+          y: 0,
+          frameId: "frame-experiment-old",
+        },
+      ],
+    });
+
+    const template = await createRetroTemplate(miroClient, { date: new Date("2026-09-26T00:00:00.000Z") });
+
+    expect(template.goNoGoSticky.content).toContain("Pairing by default on tickets");
+    expect(template.goNoGoSticky.content).toContain("Go ✅");
+    expect(template.goNoGoSticky.content).toContain("No-Go ❌");
+  });
+
+  test("treats an unedited placeholder experiment sticky as no experiment having been recorded", async () => {
+    const miroClient = MiroClient.createNull({
+      frames: [
+        { id: "frame-outer-old", title: "Retro - 2026-09-12", x: 0, y: 0, width: 2350, height: 1250 },
+        { id: "frame-experiment-old", title: "Experiment Tracking", x: 0, y: 1650, width: 478, height: 308 },
+      ],
+      stickyNotes: [
+        {
+          id: "sticky-experiment-old",
+          content: "🧪 This sprint's experiment:\n(describe what we're trying)",
+          x: 0,
+          y: 0,
+          frameId: "frame-experiment-old",
+        },
+      ],
+    });
+
+    const template = await createRetroTemplate(miroClient, { date: new Date("2026-09-26T00:00:00.000Z") });
+
+    expect(template.goNoGoSticky.content).toBe("No previous experiment recorded yet.");
   });
 
   test("defaults to today when no date is supplied", async () => {
@@ -151,15 +213,12 @@ describe("createRetroTemplate", () => {
     const miroClient = MiroClient.createNull({
       frames: [
         { id: "frame-1", title: "Retro - 2026-09-01", x: 0, y: 0, width: 800, height: 600 },
-        // The cycle overview box added below this retro sits lower than the outer frame's own bottom edge.
         { id: "frame-2", title: "Cycle overview", x: 0, y: 1200, width: 800, height: 400 },
       ],
     });
 
     const template = await createRetroTemplate(miroClient, { date: new Date("2026-09-26T00:00:00.000Z") });
 
-    // Bottom of the cycle overview box is 1200 + 400/2 = 1400, so the new template's
-    // origin.y should be offset from that, not from the outer frame's own (smaller) bottom.
     expect(template.frame.y).toBe(1400 + 200 + template.frame.height / 2);
   });
 

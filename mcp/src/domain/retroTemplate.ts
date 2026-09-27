@@ -134,13 +134,11 @@ function cycleOverviewColumnsPerRow(boxWidth: number): number {
   return Math.max(1, Math.floor((boxWidth + STICKY_MARGIN) / (STICKY_NOTE_SIZE.width + STICKY_MARGIN)));
 }
 
-/**
- * Lays out a wide box directly below a retro's outer frame, sized to fit
- * `itemCount` ticket-summary sticky notes wrapped across rows as wide as the
- * retro itself, so ticket summaries get their own space instead of crowding
- * the "Action items" column.
- */
-export function cycleOverviewBoxLayout(outerFrame: BoundedFrame, itemCount: number): RetroFrameLayout {
+export function cycleOverviewBoxLayout(
+  outerFrame: BoundedFrame,
+  itemCount: number,
+  belowFrame: BoundedFrame = outerFrame,
+): RetroFrameLayout {
   const width = outerFrame.width;
   const columnsPerRow = cycleOverviewColumnsPerRow(width);
   const rows = Math.max(CYCLE_OVERVIEW_MIN_ROWS, Math.ceil(itemCount / columnsPerRow));
@@ -148,7 +146,7 @@ export function cycleOverviewBoxLayout(outerFrame: BoundedFrame, itemCount: numb
   return {
     title: CYCLE_OVERVIEW_FRAME_TITLE,
     x: outerFrame.x,
-    y: outerFrame.y + outerFrame.height / 2 + CYCLE_OVERVIEW_GAP + height / 2,
+    y: belowFrame.y + belowFrame.height / 2 + CYCLE_OVERVIEW_GAP + height / 2,
     width,
     height,
   };
@@ -179,6 +177,67 @@ export function findCycleOverviewBox<T extends TitledFrame>(frames: T[], outerFr
   const bottom = outerFrame.y + outerFrame.height / 2;
   return frames.find((frame) => frame.title === CYCLE_OVERVIEW_FRAME_TITLE && frame.y > bottom);
 }
+
+export const EXPERIMENT_FRAME_TITLE = "Experiment Tracking";
+const EXPERIMENT_GAP = 200;
+const EXPERIMENT_BOX_PADDING = STICKY_MARGIN;
+const EXPERIMENT_BOX_WIDTH = EXPERIMENT_BOX_PADDING * 3 + STICKY_NOTE_SIZE.width * 2;
+const EXPERIMENT_BOX_HEIGHT = EXPERIMENT_BOX_PADDING * 2 + STICKY_NOTE_SIZE.height;
+
+export const NEW_EXPERIMENT_LABEL = "🧪 This sprint's experiment:";
+export const NEW_EXPERIMENT_PREFIX = `${NEW_EXPERIMENT_LABEL}\n`;
+export const NEW_EXPERIMENT_PLACEHOLDER = "(describe what we're trying)";
+export const GO_NO_GO_PREFIX = "🔁 Go / No-Go — continue last sprint's experiment?\n";
+export const GO_NO_GO_SUFFIX = "\n\nGo ✅  /  No-Go ❌";
+export const NO_PREVIOUS_EXPERIMENT_TEXT = "No previous experiment recorded yet.";
+
+export interface ExperimentBoxLayout {
+  frame: RetroFrameLayout;
+  goNoGoSticky: StickyLayout;
+  newExperimentSticky: StickyLayout;
+}
+
+export function experimentBoxLayout(outerFrame: BoundedFrame, previousExperimentText?: string): ExperimentBoxLayout {
+  const frame: RetroFrameLayout = {
+    title: EXPERIMENT_FRAME_TITLE,
+    x: outerFrame.x,
+    y: outerFrame.y + outerFrame.height / 2 + EXPERIMENT_GAP + EXPERIMENT_BOX_HEIGHT / 2,
+    width: EXPERIMENT_BOX_WIDTH,
+    height: EXPERIMENT_BOX_HEIGHT,
+  };
+  const centerY = EXPERIMENT_BOX_PADDING + STICKY_NOTE_SIZE.height / 2;
+  const goNoGoContent = previousExperimentText
+    ? `${GO_NO_GO_PREFIX}"${previousExperimentText}"${GO_NO_GO_SUFFIX}`
+    : NO_PREVIOUS_EXPERIMENT_TEXT;
+  return {
+    frame,
+    goNoGoSticky: {
+      content: goNoGoContent,
+      x: EXPERIMENT_BOX_PADDING + STICKY_NOTE_SIZE.width / 2,
+      y: centerY,
+    },
+    newExperimentSticky: {
+      content: `${NEW_EXPERIMENT_PREFIX}${NEW_EXPERIMENT_PLACEHOLDER}`,
+      x: EXPERIMENT_BOX_PADDING * 2 + STICKY_NOTE_SIZE.width * 1.5,
+      y: centerY,
+    },
+  };
+}
+
+export function findExperimentBox<T extends TitledFrame>(frames: T[], outerFrame: BoundedFrame): T | undefined {
+  const bottom = outerFrame.y + outerFrame.height / 2;
+  return frames.find((frame) => frame.title === EXPERIMENT_FRAME_TITLE && frame.y > bottom);
+}
+
+export function extractExperimentText(content: string): string | undefined {
+  if (!content.startsWith(NEW_EXPERIMENT_LABEL)) {
+    return undefined;
+  }
+  const text = content.slice(NEW_EXPERIMENT_LABEL.length).trim();
+  return text && text !== NEW_EXPERIMENT_PLACEHOLDER ? text : undefined;
+}
+
+export const AUXILIARY_FRAME_TITLES = [CYCLE_OVERVIEW_FRAME_TITLE, EXPERIMENT_FRAME_TITLE] as const;
 
 export function formatRetroDate(date: Date): string {
   return date.toISOString().slice(0, 10);

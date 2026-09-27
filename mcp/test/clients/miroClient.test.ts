@@ -36,6 +36,23 @@ describe("MiroClient.createNull", () => {
     expect(notes).toEqual([]);
   });
 
+  test("decodes HTML character entities Miro uses for emoji and apostrophes", async () => {
+    const client = MiroClient.createNull({
+      stickyNotes: [
+        {
+          id: "1",
+          content: "&#x1f9ea; This sprint&#39;s experiment:\n(describe what we&#39;re trying)",
+          x: 0,
+          y: 0,
+        },
+      ],
+    });
+
+    const notes = await client.getBoardStickyNotes();
+
+    expect(notes[0].content).toBe("🧪 This sprint's experiment:\n(describe what we're trying)");
+  });
+
   test("follows pagination cursors to return every sticky note across multiple pages", async () => {
     const client = MiroClient.createNull({
       stickyNotePages: [

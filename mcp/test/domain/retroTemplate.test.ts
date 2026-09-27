@@ -2,6 +2,9 @@ import { describe, expect, test } from "vitest";
 import {
   buildRetroTemplateLayout,
   DOT_VOTE_BOX_TITLE,
+  experimentBoxLayout,
+  extractExperimentText,
+  findExperimentBox,
   MOOD_BOX_TITLE,
   RETRO_COLUMN_TITLES,
   STICKY_NOTE_SIZE,
@@ -193,5 +196,65 @@ describe("buildRetroTemplateLayout", () => {
     expect(originAtZero.dotVoteBoxSticky.content.length).toBeGreaterThan(0);
     expect(originElsewhere.moodBoxSticky).toEqual(originAtZero.moodBoxSticky);
     expect(originElsewhere.dotVoteBoxSticky).toEqual(originAtZero.dotVoteBoxSticky);
+  });
+});
+
+describe("experimentBoxLayout", () => {
+  test("positions the box below the outer frame and gives it a Go/No-Go and a fresh experiment prompt", () => {
+    const layout = buildRetroTemplateLayout(new Date("2026-09-26T00:00:00.000Z"));
+
+    const experiment = experimentBoxLayout(layout.frame);
+
+    expect(experiment.frame.title).toBe("Experiment Tracking");
+    expect(experiment.frame.y - experiment.frame.height / 2).toBeGreaterThan(layout.frame.y + layout.frame.height / 2);
+    expect(experiment.goNoGoSticky.content).toBe("No previous experiment recorded yet.");
+    expect(experiment.newExperimentSticky.content).toContain("This sprint's experiment:");
+  });
+
+  test("includes the previous experiment's text in the Go/No-Go prompt when one is given", () => {
+    const layout = buildRetroTemplateLayout(new Date("2026-09-26T00:00:00.000Z"));
+
+    const experiment = experimentBoxLayout(layout.frame, "Pairing by default on tickets");
+
+    expect(experiment.goNoGoSticky.content).toContain("Pairing by default on tickets");
+    expect(experiment.goNoGoSticky.content).toContain("Go ✅");
+    expect(experiment.goNoGoSticky.content).toContain("No-Go ❌");
+  });
+});
+
+describe("findExperimentBox", () => {
+  test("finds the Experiment Tracking box that sits below a given outer frame", () => {
+    const outerFrame = { title: "Retro - 2026-09-12", x: 0, y: 0, width: 2350, height: 1250 };
+    const frames = [
+      outerFrame,
+      { title: "Experiment Tracking", x: 0, y: 1650, width: 478, height: 308 },
+      { title: "Experiment Tracking", x: 0, y: 4000, width: 478, height: 308 }, // belongs to a different, later retro
+    ];
+
+    const found = findExperimentBox(frames, outerFrame);
+
+    expect(found?.y).toBe(1650);
+  });
+
+  test("returns undefined when there is no Experiment Tracking box for this retro", () => {
+    const outerFrame = { title: "Retro - 2026-09-12", x: 0, y: 0, width: 2350, height: 1250 };
+
+    expect(findExperimentBox([outerFrame], outerFrame)).toBeUndefined();
+  });
+});
+
+describe("extractExperimentText", () => {
+  test("extracts the text a team wrote after the prefix", () => {
+    expect(extractExperimentText("🧪 This sprint's experiment:\nPairing by default on tickets")).toBe(
+      "Pairing by default on tickets",
+    );
+  });
+
+  test("returns undefined for the unedited placeholder", () => {
+    expect(extractExperimentText("🧪 This sprint's experiment:\n(describe what we're trying)")).toBeUndefined();
+  });
+
+  test("returns undefined for content that isn't an experiment sticky", () => {
+    expect(extractExperimentText("Some other sticky note")).toBeUndefined();
   });
 });

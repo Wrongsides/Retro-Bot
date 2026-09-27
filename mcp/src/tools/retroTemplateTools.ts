@@ -1,12 +1,16 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
+  AUXILIARY_FRAME_TITLES,
   buildRetroTemplateLayout,
-  CYCLE_OVERVIEW_FRAME_TITLE,
+  experimentBoxLayout,
+  extractExperimentText,
+  findExperimentBox,
+  findLatestRetroFrame,
   RETRO_FRAME_TITLE_PATTERN,
 } from "../domain/retroTemplate.js";
 import { miroClient as defaultClient } from "../clients/index.js";
-import { MiroClient, type MiroFrame, type MiroStickyNote } from "../clients/miroClient.js";
+import { MiroClient, type MiroFrame, type MiroFrameLayout, type MiroStickyNote } from "../clients/miroClient.js";
 import { logger } from "../utils/logger.js";
 
 const AUTO_OFFSET_GAP = 200;
@@ -33,6 +37,9 @@ export interface RetroTemplate {
   moodBoxSticky: MiroStickyNote;
   dotVoteBox: PositionedFrame;
   dotVoteBoxSticky: MiroStickyNote;
+  experimentBox: PositionedFrame;
+  goNoGoSticky: MiroStickyNote;
+  newExperimentSticky: MiroStickyNote;
   marker: MiroStickyNote;
 }
 
@@ -43,21 +50,45 @@ function toolError(message: string) {
 async function resolveOrigin(
   client: MiroClient,
   options: CreateRetroTemplateOptions,
-): Promise<{ x: number; y: number }> {
+): Promise<{ x: number; y: number; frames: MiroFrameLayout[] }> {
   if (options.x !== undefined && options.y !== undefined) {
-    return { x: options.x, y: options.y };
+    return { x: options.x, y: options.y, frames: [] };
   }
 
   const frames = await client.getBoardFrames(options.boardId);
   const retroFrames = frames.filter(
-    (frame) => RETRO_FRAME_TITLE_PATTERN.test(frame.title) || frame.title === CYCLE_OVERVIEW_FRAME_TITLE,
+    (frame) =>
+      RETRO_FRAME_TITLE_PATTERN.test(frame.title) ||
+      (AUXILIARY_FRAME_TITLES as readonly string[]).includes(frame.title),
   );
   if (retroFrames.length === 0) {
-    return { x: options.x ?? 0, y: options.y ?? 0 };
+    return { x: options.x ?? 0, y: options.y ?? 0, frames };
   }
 
   const lowestBottom = Math.max(...retroFrames.map((frame) => frame.y + frame.height / 2));
-  return { x: options.x ?? 0, y: options.y ?? lowestBottom + AUTO_OFFSET_GAP };
+  return { x: options.x ?? 0, y: options.y ?? lowestBottom + AUTO_OFFSET_GAP, frames };
+}
+
+async function findPreviousExperimentText(
+  client: MiroClient,
+  frames: MiroFrameLayout[],
+  boardId: string | undefined,
+): Promise<string | undefined> {
+  const previousRetroFrame = findLatestRetroFrame(frames);
+  if (!previousRetroFrame) {
+    return undefined;
+  }
+  const previousExperimentBox = findExperimentBox(frames, previousRetroFrame);
+  if (!previousExperimentBox) {
+    return undefined;
+  }
+  const stickyNotes = await client.getBoardStickyNotes(boardId);
+  for (const note of stickyNotes) {
+    if (note.frameId !== previousExperimentBox.id) continue;
+    const text = extractExperimentText(note.content);
+    if (text) return text;
+  }
+  return undefined;
 }
 
 export async function createRetroTemplate(
@@ -65,6 +96,7 @@ export async function createRetroTemplate(
   options: CreateRetroTemplateOptions = {},
 ): Promise<RetroTemplate> {
   const origin = await resolveOrigin(client, options);
+  const previousExperimentText = await findPreviousExperimentText(client, origin.frames, options.boardId);
   const layout = buildRetroTemplateLayout(options.date ?? new Date(), origin);
 
   const createdFrame = await client.createFrame({ ...layout.frame, boardId: options.boardId });
@@ -123,6 +155,30 @@ export async function createRetroTemplate(
     frameId: dotVoteBox.id,
   });
 
+  const experimentLayout = experimentBoxLayout(frame, previousExperimentText);
+  const createdExperimentBox = await client.createFrame({ ...experimentLayout.frame, boardId: options.boardId });
+  const experimentBox: PositionedFrame = {
+    ...createdExperimentBox,
+    x: experimentLayout.frame.x,
+    y: experimentLayout.frame.y,
+    width: experimentLayout.frame.width,
+    height: experimentLayout.frame.height,
+  };
+  const goNoGoSticky = await client.createStickyNote({
+    content: experimentLayout.goNoGoSticky.content,
+    x: experimentLayout.goNoGoSticky.x,
+    y: experimentLayout.goNoGoSticky.y,
+    boardId: options.boardId,
+    frameId: experimentBox.id,
+  });
+  const newExperimentSticky = await client.createStickyNote({
+    content: experimentLayout.newExperimentSticky.content,
+    x: experimentLayout.newExperimentSticky.x,
+    y: experimentLayout.newExperimentSticky.y,
+    boardId: options.boardId,
+    frameId: experimentBox.id,
+  });
+
   const marker = await client.createStickyNote({
     content: layout.marker.content,
     x: layout.marker.x,
@@ -131,13 +187,31 @@ export async function createRetroTemplate(
     frameId: frame.id,
   });
 
-  return { frame, columns, columnStickyStacks, moodBox, moodBoxSticky, dotVoteBox, dotVoteBoxSticky, marker };
+  return {
+    frame,
+    columns,
+    columnStickyStacks,
+    moodBox,
+    moodBoxSticky,
+    dotVoteBox,
+    dotVoteBoxSticky,
+    experimentBox,
+    goNoGoSticky,
+    newExperimentSticky,
+    marker,
+  };
 }
 
 function formatTemplate(template: RetroTemplate): string {
   const lines = [`Created retro frame ${template.frame.id}: ${template.frame.title}`, "", "Columns:"];
   lines.push(...template.columns.map((column) => `- ${column.id}: ${column.title}`));
   lines.push("", `Mood box: ${template.moodBox.id}`, `Dot votes box: ${template.dotVoteBox.id}`);
+  lines.push(
+    "",
+    `Experiment tracking box: ${template.experimentBox.id}`,
+    `- ${template.goNoGoSticky.content}`,
+    `- ${template.newExperimentSticky.content}`,
+  );
   lines.push("", `Date marker: ${template.marker.id} — ${template.marker.content}`);
   return lines.join("\n");
 }
@@ -151,8 +225,9 @@ export function registerRetroTemplateTools(server: McpServer, client: MiroClient
         "Set up a new empty retrospective on a Miro board: an outer frame titled with the given or current " +
         "date, four column frames (What went well?, What should we do differently?, What should we start " +
         "doing?, Action items) each pre-seeded with a stack of starter sticky notes, a Mood box and a Dot " +
-        "Votes box each with an instructional sticky note, and a dated marker sticky note so future retros " +
-        "can find where the previous one ended.",
+        "Votes box each with an instructional sticky note, an Experiment Tracking box (a Go/No-Go prompt on " +
+        "the previous retro's experiment, plus a fresh prompt for this sprint's experiment), and a dated " +
+        "marker sticky note so future retros can find where the previous one ended.",
       inputSchema: {
         boardId: z.string().optional().describe("Miro board ID, defaults to configured board"),
         date: z.string().optional().describe("Retro date as YYYY-MM-DD, defaults to today"),
@@ -176,3 +251,4 @@ export function registerRetroTemplateTools(server: McpServer, client: MiroClient
     },
   );
 }
+

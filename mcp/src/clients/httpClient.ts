@@ -1,3 +1,14 @@
+import { Agent, setGlobalDispatcher } from "undici";
+import { logger } from "../utils/logger.js";
+
+setGlobalDispatcher(
+  new Agent({
+    keepAliveTimeout: 10_000,
+    keepAliveMaxTimeout: 30_000,
+    connections: 10,
+  }),
+);
+
 export interface HttpRequest {
   method: string;
   url: string;
@@ -80,14 +91,75 @@ function createEmbeddedStub(responses: ResponseMap) {
   };
 }
 
+const MAX_ATTEMPTS = 4;
+const BASE_DELAY_MS = 300;
+const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
+
+export function shouldRetry(attempt: number, status?: number): boolean {
+  if (attempt >= MAX_ATTEMPTS) return false;
+  return status === undefined || RETRYABLE_STATUSES.has(status);
+}
+
+export function retryDelayMs(attempt: number, retryAfterHeader?: string | null): number {
+  if (retryAfterHeader) {
+    const seconds = Number(retryAfterHeader);
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return seconds * 1000;
+    }
+  }
+  const exponential = BASE_DELAY_MS * 2 ** (attempt - 1);
+  const jitter = Math.random() * BASE_DELAY_MS;
+  return exponential + jitter;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function performRequest<T>(req: HttpRequest): Promise<HttpResponse<T>> {
-  const res = await fetch(req.url, {
-    method: req.method,
-    headers: req.headers,
-    body: req.body === undefined ? undefined : JSON.stringify(req.body),
-  });
-  const data = (await res.json().catch(() => undefined)) as T;
-  return { status: res.status, ok: res.ok, data };
+  let attempt = 0;
+  let lastError: unknown;
+
+  while (attempt < MAX_ATTEMPTS) {
+    attempt += 1;
+    try {
+      const res = await fetch(req.url, {
+        method: req.method,
+        headers: req.headers,
+        body: req.body === undefined ? undefined : JSON.stringify(req.body),
+      });
+      if (shouldRetry(attempt, res.status)) {
+        const delay = retryDelayMs(attempt, res.headers.get("retry-after"));
+        logger.warn("Retrying request after non-success status", {
+          method: req.method,
+          url: req.url,
+          status: res.status,
+          attempt,
+          delayMs: Math.round(delay),
+        });
+        await sleep(delay);
+        continue;
+      }
+      const data = (await res.json().catch(() => undefined)) as T;
+      return { status: res.status, ok: res.ok, data };
+    } catch (err) {
+      lastError = err;
+      if (!shouldRetry(attempt)) break;
+      const delay = retryDelayMs(attempt);
+      logger.warn("Retrying request after network error", {
+        method: req.method,
+        url: req.url,
+        error: String(err),
+        attempt,
+        delayMs: Math.round(delay),
+      });
+      await sleep(delay);
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`Request failed after ${MAX_ATTEMPTS} attempts: ${req.method} ${req.url}`);
 }
 
 export class HttpClient {
