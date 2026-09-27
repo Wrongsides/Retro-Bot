@@ -1,0 +1,36 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.17",
+  "version": "1.0.0",
+  "id": "00000000-0000-0000-0000-000000000000",
+  "packageName": "com.retrobot.teamsbot",
+  "developer": {
+    "name": "Retro Bot",
+    "websiteUrl": "https://github.com/Wrongsides/Retro-Bot",
+    "privacyUrl": "https://github.com/Wrongsides/Retro-Bot",
+    "termsOfUseUrl": "https://github.com/Wrongsides/Retro-Bot"
+  },
+  "name": {
+    "short": "Retro Bot",
+    "full": "Retro Bot Teams Assistant"
+  },
+  "description": {
+    "short": "Bridges Teams to the retro-bot MCP server.",
+    "full": "A Teams bot used to verify Bot Framework <-> Teams permissions and to smoke-test calls into the retro-bot MCP server (Jira, Miro, GitHub tools)."
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "accentColor": "#6264A7",
+  "bots": [
+    {
+      "botId": "00000000-0000-0000-0000-000000000000",
+      "scopes": ["personal", "team", "groupchat"],
+      "supportsFiles": false,
+      "isNotificationOnly": false
+    }
+  ],
+  "permissions": ["identity", "messageTeamMembers"],
+  "validDomains": []
+}

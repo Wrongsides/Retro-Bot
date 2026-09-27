@@ -1,2 +1,6 @@
+packages:
+  - "mcp"
+  - "teams"
+
 allowBuilds:
   esbuild: true
