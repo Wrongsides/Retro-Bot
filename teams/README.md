@@ -18,6 +18,16 @@ Emulator):
 - `create retro` — calls the `miro_create_retro` MCP tool as a smoke test.
 - `cycle overview` — calls the `cycle_overview` MCP tool (Jira actions completed
   or still in progress since the previous retro).
+- `retro summary` — calls the `retro_summary` MCP tool (the latest retro's
+  columns, mood board and experiment tracking box, plus any Jira action
+  tickets created from the action items), then prompts for feedback with an
+  Adaptive Card showing five star-rating buttons. Tapping a star calls
+  `retro_feedback` with the selected rating.
+- `feedback <1-5> [comment]` — calls the `retro_feedback` MCP tool directly to
+  record a star rating (and optional comment) for Retro-Bot itself, without
+  waiting for the card prompt.
+- `feedback summary` — calls the `retro_feedback_summary` MCP tool for the
+  average star rating and most recent comments.
 - anything else — shows a short usage hint.
 
 ## Prerequisites

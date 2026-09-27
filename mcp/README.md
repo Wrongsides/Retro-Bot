@@ -31,6 +31,9 @@ pattern) may be added later to front this server for a Teams bot.
 | `cycle_overview` | read + write | Summarise Jira actions completed/in-progress since the previous retro, and write ticket summaries as sticky notes to a "Cycle overview" box below the current retro |
 | `github_list_open_issues` | read | List open issues in a GitHub repo |
 | `github_create_issue` | write | Create a GitHub issue for a technical retro action |
+| `retro_summary` | read + write | Generate a warm narrative summary (via an LLM) of the latest retro's four columns, mood board and experiment tracking box, and create a Jira ticket (searching first to avoid duplicates) for each action item not already tracked. Fails closed (returns an error, no partial output) if the LLM call fails |
+| `retro_feedback` | write | Record a 1-5 star rating (with optional comment) of Retro-Bot itself, stored in a filesystem-backed feedback store |
+| `retro_feedback_summary` | read | Report the average star rating and most recent comments from the feedback store |
 
 All "write" tools are designed to be called only after a human has confirmed the summary/title
 — they perform creation, they don't decide what should be created.
@@ -59,6 +62,47 @@ pnpm inspect
 Set `USE_NULL_CLIENTS=false` in `.env` and fill in the relevant credentials
 (`JIRA_*`, `MIRO_*`, `GITHUB_*`). With null clients on (default), each integration returns
 realistic in-memory sample data and "creates" are tracked in-process for the demo.
+
+### LLM-backed narrative summaries
+
+`retro_summary` calls an LLM to turn the retro's raw sticky notes, mood reactions and
+experiment tracking box into a short narrative, rather than a literal list of post-its. By
+default this runs against a **local Ollama instance** — GitHub Models (the original default)
+was fully retired in July 2026, so there's no free hosted option to fall back to. With
+`USE_NULL_CLIENTS=true` (default) a canned narrative is returned instead of calling a real
+LLM. If the LLM call fails, `retro_summary` fails closed — it returns an error rather than
+falling back to a partial/literal summary.
+
+**Local dev with Ollama (default):** `LlmClient` POSTs to `{LLM_BASE_URL}/chat/completions`
+using the standard OpenAI chat-completions shape, which [Ollama's OpenAI-compatible
+API](https://github.com/ollama/ollama/blob/main/docs/openai.md) also implements — no code
+changes needed. Install Ollama locally:
+
+```bash
+ollama serve       # start the server
+ollama pull llama3.1
+```
+
+Stop it by quitting the app, `brew services stop ollama`, or killing the `ollama serve`
+process.
+
+(A Docker Compose setup was tried but doesn't work on networks with TLS-inspecting
+corporate proxies — the host trusts the proxy's root CA, but the Ollama container's model
+pull doesn't, so `ollama pull` fails inside the container. Running Ollama natively avoids
+this since it uses the host's own trust store.)
+
+Either way, the defaults already point here — no `.env` changes required:
+
+```bash
+LLM_BASE_URL=http://localhost:11434/v1
+LLM_MODEL=llama3.1
+GITHUB_MODELS_TOKEN=ollama   # ignored by Ollama, but the client always sends a Bearer token
+```
+
+**Using a hosted provider instead:** point `LLM_BASE_URL`/`LLM_MODEL`/`GITHUB_MODELS_TOKEN`
+at any other OpenAI-compatible chat-completions endpoint (e.g.
+[Azure AI Foundry](https://ai.azure.com/), which GitHub now points to as GitHub Models'
+replacement).
 
 ## Status
 

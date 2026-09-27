@@ -49,6 +49,88 @@ describe("TeamsRetroBot message routing", () => {
     expect(mcpClient.trackCalls()).toEqual([{ toolName: "cycle_overview", args: {} }]);
   });
 
+  test('"retro summary" calls retro_summary, relays the result, and prompts for star-rating feedback', async () => {
+    const mcpClient = McpClient.createNull({
+      responses: { retro_summary: "Mood\n- Good" },
+    });
+    const adapter = createTestAdapter(mcpClient);
+
+    await adapter
+      .send("retro summary")
+      .assertReply("retro_summary result:\nMood\n- Good")
+      .assertReply((activity) => {
+        expect(activity.attachments).toHaveLength(1);
+        expect(activity.attachments?.[0].contentType).toBe("application/vnd.microsoft.card.adaptive");
+        const card = activity.attachments?.[0].content as { actions: { title: string; data: { rating: number } }[] };
+        expect(card.actions.map((action) => action.data.rating)).toEqual([1, 2, 3, 4, 5]);
+      });
+
+    expect(mcpClient.trackCalls()).toEqual([{ toolName: "retro_summary", args: {} }]);
+  });
+
+  test("submitting the feedback card calls retro_feedback with the selected rating", async () => {
+    const mcpClient = McpClient.createNull({
+      responses: { retro_feedback: "Thanks for the feedback! Recorded 4/5." },
+    });
+    const adapter = createTestAdapter(mcpClient);
+
+    await adapter
+      .send({ type: "message", value: { rating: 4 } })
+      .assertReply("retro_feedback result:\nThanks for the feedback! Recorded 4/5.");
+
+    expect(mcpClient.trackCalls()).toEqual([{ toolName: "retro_feedback", args: { rating: 4 } }]);
+  });
+
+  test('"feedback <rating> <comment>" calls retro_feedback with the rating and comment', async () => {
+    const mcpClient = McpClient.createNull({
+      responses: { retro_feedback: "Thanks for the feedback! Recorded 5/5." },
+    });
+    const adapter = createTestAdapter(mcpClient);
+
+    await adapter
+      .send("feedback 5 loved the experiment tracking box")
+      .assertReply("retro_feedback result:\nThanks for the feedback! Recorded 5/5.");
+
+    expect(mcpClient.trackCalls()).toEqual([
+      { toolName: "retro_feedback", args: { rating: 5, comment: "loved the experiment tracking box" } },
+    ]);
+  });
+
+  test('"feedback <rating>" without a comment calls retro_feedback with no comment', async () => {
+    const mcpClient = McpClient.createNull({
+      responses: { retro_feedback: "Thanks for the feedback! Recorded 4/5." },
+    });
+    const adapter = createTestAdapter(mcpClient);
+
+    await adapter.send("feedback 4").assertReply("retro_feedback result:\nThanks for the feedback! Recorded 4/5.");
+
+    expect(mcpClient.trackCalls()).toEqual([{ toolName: "retro_feedback", args: { rating: 4 } }]);
+  });
+
+  test('"feedback summary" calls retro_feedback_summary and relays the result', async () => {
+    const mcpClient = McpClient.createNull({
+      responses: { retro_feedback_summary: "Retro-Bot feedback: 4.0/5 average from 3 ratings" },
+    });
+    const adapter = createTestAdapter(mcpClient);
+
+    await adapter
+      .send("feedback summary")
+      .assertReply("retro_feedback_summary result:\nRetro-Bot feedback: 4.0/5 average from 3 ratings");
+
+    expect(mcpClient.trackCalls()).toEqual([{ toolName: "retro_feedback_summary", args: {} }]);
+  });
+
+  test('"feedback" with an out-of-range rating is rejected without calling the MCP server', async () => {
+    const mcpClient = McpClient.createNull();
+    const adapter = createTestAdapter(mcpClient);
+
+    await adapter
+      .send("feedback 9 too high")
+      .assertReply('Please give a star rating between 1 and 5, e.g. "feedback 5 loved it".');
+
+    expect(mcpClient.trackCalls()).toEqual([]);
+  });
+
   test("unrecognised text falls back to the usage help message", async () => {
     const mcpClient = McpClient.createNull();
     const adapter = createTestAdapter(mcpClient);
@@ -56,7 +138,7 @@ describe("TeamsRetroBot message routing", () => {
     await adapter
       .send("hello there")
       .assertReply(
-        'Hi! Try "tools" to list retro-bot MCP tools, "create retro" to run a smoke test, or "cycle overview" for a Jira summary since the last retro.'
+        'Hi! Try "tools" to list retro-bot MCP tools, "create retro" to run a smoke test, "cycle overview" for a Jira summary since the last retro, "retro summary" for the latest retro\'s outcomes, "feedback <1-5> [comment]" to rate Retro-Bot, or "feedback summary" to see the average rating.'
       );
   });
 

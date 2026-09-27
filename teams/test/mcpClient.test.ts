@@ -7,7 +7,7 @@ describe("McpClient.createNull", () => {
 
     const tools = await client.listTools();
 
-    expect(tools).toEqual(["miro_create_retro", "cycle_overview"]);
+    expect(tools).toEqual(["miro_create_retro", "cycle_overview", "retro_summary", "retro_feedback"]);
   });
 
   test("returns a configured tool list", async () => {

@@ -28,7 +28,7 @@ export const STICKY_STACK_INSET = {
 export const STICKY_STACK_STAGGER = 15;
 const MOOD_STICKY_OFFSET = { x: HALF_COLUMN_WIDTH / 2, y: COLUMN_HEIGHT / 2 };
 const DOT_VOTE_STICKY_OFFSET = { x: HALF_COLUMN_WIDTH / 2, y: COLUMN_HEIGHT / 2 };
-const MOOD_STICKY_CONTENT = "How's everyone feeling about this sprint? 😀 😐 😞";
+export const MOOD_STICKY_CONTENT = "How's everyone feeling about this sprint? 😀 😐 😞";
 const DOT_VOTE_STICKY_CONTENT = "Add a dot 🔴 to vote for the action you care about most";
 
 export interface RetroFrameLayout {

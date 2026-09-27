@@ -34,7 +34,7 @@ export interface McpClientNullOptions {
   responses?: Record<string, string | ((args: Record<string, unknown>) => string)>;
 }
 
-const DEFAULT_NULL_TOOLS = ["miro_create_retro", "cycle_overview"];
+const DEFAULT_NULL_TOOLS = ["miro_create_retro", "cycle_overview", "retro_summary", "retro_feedback"];
 
 export class McpClient {
   private readonly tracker: { calls: McpToolCallRecord[] } = { calls: [] };

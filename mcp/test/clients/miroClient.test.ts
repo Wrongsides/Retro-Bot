@@ -77,9 +77,22 @@ describe("MiroClient.createNull", () => {
     await client.getBoardStickyNotes();
 
     const requests = client.trackRequests();
-    expect(requests).toHaveLength(1);
-    expect(requests[0].method).toBe("GET");
-    expect(requests[0].url).toContain("/boards/demo-board/items");
+    expect(requests.every((request) => request.method === "GET")).toBe(true);
+    expect(requests.every((request) => request.url.includes("/boards/demo-board/items"))).toBe(true);
+  });
+
+  test("also includes plain text items so mood emoji pasted outside sticky notes are captured", async () => {
+    const client = MiroClient.createNull({
+      stickyNotes: [{ id: "1", content: "Deploys felt smoother this sprint", x: 0, y: 0 }],
+      textItems: [{ id: "2", content: "😀", x: 50, y: 50, frameId: "mood-frame" }],
+    });
+
+    const notes = await client.getBoardStickyNotes();
+
+    expect(notes).toEqual([
+      { id: "1", content: "Deploys felt smoother this sprint", x: 0, y: 0 },
+      { id: "2", content: "😀", x: 50, y: 50, frameId: "mood-frame" },
+    ]);
   });
 
   test("requests the supplied board id when one is given", async () => {

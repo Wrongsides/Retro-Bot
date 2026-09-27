@@ -4,6 +4,7 @@ import { registerMiroTools } from "./miroTools.js";
 import { registerGitHubTools } from "./githubTools.js";
 import { registerCycleOverviewTools } from "./cycleOverviewTools.js";
 import { registerRetroTemplateTools } from "./retroTemplateTools.js";
+import { registerSummaryTools } from "./summaryTools.js";
 
 export function registerAllTools(server: McpServer) {
   registerJiraTools(server);
@@ -11,4 +12,5 @@ export function registerAllTools(server: McpServer) {
   registerGitHubTools(server);
   registerCycleOverviewTools(server);
   registerRetroTemplateTools(server);
+  registerSummaryTools(server);
 }

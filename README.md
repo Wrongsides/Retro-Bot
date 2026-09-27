@@ -36,6 +36,18 @@ Teams client ⇄ Azure Bot / Bot Framework ⇄ teams (MCP client) ⇄ mcp (MCP s
 - **Teams bot scaffold** — a Bot Framework bot (Express-based) that opens an MCP session per
   message and supports `tools`, `create retro`, and `cycle overview` chat commands. Verified
   end-to-end against a real demo Miro board and Jira project via the Bot Framework Emulator.
+- **`retro_summary`** — turns the latest retro's four columns, mood board and experiment
+  tracking box into a short LLM-written narrative (rather than a literal post-it dump), and
+  creates a Jira ticket for each action item not already tracked (searching Jira first to
+  avoid duplicates). Runs against a local Ollama instance by default (GitHub Models, the
+  original default, was retired in July 2026), but any OpenAI-compatible endpoint works — see
+  `mcp/README.md`. Fails closed if the LLM call fails, rather than falling back to a partial
+  summary.
+- **`retro_feedback`** — lets users rate Retro-Bot itself (1-5 stars, optional comment),
+  recorded to a simple filesystem-backed feedback store as a first step towards tracking
+  satisfaction over time.
+- **`retro_feedback_summary`** — reports the average star rating and most recent comments
+  from that feedback store.
 - Nullable-infrastructure test doubles (`Client.createNull()`) for Jira/Miro/GitHub so the
   whole tool surface is unit-tested without hitting real APIs (see `mcp/test/`).
 
@@ -63,9 +75,9 @@ this goes beyond a PoC:
   real credentials are involved.
 - Longer-lived MCP sessions/connection pooling in the Teams bot instead of one session per
   message (fine for smoke testing, not for production traffic).
-- Retro-specific reasoning beyond raw tool access: theme clustering of sticky notes, action
-  drafting suggestions, and a separate "retro summary" feature (as distinct from the
-  Jira-focused `cycle_overview`).
+- Retro-specific reasoning beyond raw tool access: theme clustering of sticky notes and
+  action drafting suggestions (the "retro summary" feature itself, distinct from the
+  Jira-focused `cycle_overview`, is now built — see `retro_summary` above).
 - **UI/UX design pass on the Miro templates.** Current layout (frames, colours, sticky
   placement) is programmer-designed and functional but not polished. Bring in proper UI/UX
   design for the retro board template and sticky styling (colour coding, spacing, iconography)

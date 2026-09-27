@@ -44,6 +44,7 @@ export interface CreateStickyNoteInput {
 export interface MiroClientNullOptions {
   stickyNotes?: MiroStickyNote[];
   stickyNotePages?: MiroStickyNote[][];
+  textItems?: MiroStickyNote[];
   frames?: MiroFrameLayout[];
   failure?: { status: number };
 }
@@ -128,27 +129,41 @@ function defaultStickyNotes(): MiroStickyNote[] {
 function defaultNullResponses(options: MiroClientNullOptions): ResponseMap {
   if (options.failure) {
     const failed = { status: options.failure.status };
-    return { "GET /items": failed, "POST /frames": failed, "POST /sticky_notes": failed };
+    return {
+      "GET /items?type=sticky_note": failed,
+      "GET /items?type=text": failed,
+      "GET /items?type=frame": failed,
+      "POST /frames": failed,
+      "POST /sticky_notes": failed,
+    };
   }
 
   const pages = options.stickyNotePages ?? [options.stickyNotes ?? defaultStickyNotes()];
+  const textItems = options.textItems ?? [];
   const frames = options.frames ?? [];
   let frameCounter = 1;
   let stickyCounter = 1;
 
+  const toItemsBody = (items: MiroStickyNote[]): MiroItemsResponseBody => ({
+    data: items.map((note) => ({
+      id: note.id,
+      data: { content: `<p>${note.content}</p>` },
+      position: { x: note.x, y: note.y },
+      createdBy: note.author ? { id: note.author } : undefined,
+      parent: note.frameId ? { id: note.frameId } : undefined,
+    })),
+  });
+
   return {
     "GET /items?type=sticky_note": pages.map((page, index) => ({
       body: {
-        data: page.map((note) => ({
-          id: note.id,
-          data: { content: `<p>${note.content}</p>` },
-          position: { x: note.x, y: note.y },
-          createdBy: note.author ? { id: note.author } : undefined,
-          parent: note.frameId ? { id: note.frameId } : undefined,
-        })),
+        ...toItemsBody(page),
         cursor: index < pages.length - 1 ? `page-${index + 2}` : undefined,
       } satisfies MiroItemsResponseBody,
     })),
+    "GET /items?type=text": {
+      body: toItemsBody(textItems) satisfies MiroItemsResponseBody,
+    },
     "GET /items?type=frame": {
       body: {
         data: frames.map((frame) => ({
@@ -196,14 +211,20 @@ export class MiroClient {
   }
 
   async getBoardStickyNotes(boardId?: string): Promise<MiroStickyNote[]> {
+    const stickyNotes = await this.fetchBoardItems(boardId, "sticky_note");
+    const textNotes = await this.fetchBoardItems(boardId, "text");
+    return [...stickyNotes, ...textNotes];
+  }
+
+  private async fetchBoardItems(boardId: string | undefined, type: "sticky_note" | "text"): Promise<MiroStickyNote[]> {
     const id = boardId ?? this.defaultBoardId;
     const notes: MiroStickyNote[] = [];
     let cursor: string | undefined;
 
     do {
       const url = cursor
-        ? `https://api.miro.com/v2/boards/${id}/items?type=sticky_note&cursor=${encodeURIComponent(cursor)}`
-        : `https://api.miro.com/v2/boards/${id}/items?type=sticky_note`;
+        ? `https://api.miro.com/v2/boards/${id}/items?type=${type}&cursor=${encodeURIComponent(cursor)}`
+        : `https://api.miro.com/v2/boards/${id}/items?type=${type}`;
       const response = await this.http.request<MiroItemsResponseBody>({
         method: "GET",
         url,

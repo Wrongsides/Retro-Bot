@@ -23,4 +23,12 @@ export const config = {
     defaultOwner: process.env.GITHUB_DEFAULT_OWNER ?? "",
     defaultRepo: process.env.GITHUB_DEFAULT_REPO ?? "",
   },
+  llm: {
+    baseUrl: process.env.LLM_BASE_URL ?? "http://localhost:11434/v1",
+    token: process.env.GITHUB_MODELS_TOKEN ?? process.env.GITHUB_TOKEN ?? "ollama",
+    model: process.env.LLM_MODEL ?? "llama3.1",
+  },
+  feedback: {
+    filePath: process.env.FEEDBACK_STORE_PATH ?? "data/feedback.json",
+  },
 } as const;
