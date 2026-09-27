@@ -85,7 +85,8 @@ Set the Azure Bot's messaging endpoint to
 
 - `retro-bot`'s `/mcp` endpoint currently has **no auth**. Once that changes,
   set `MCP_SERVER_TOKEN` in `.env` — it's already wired into the MCP client's
-  request headers.
+  request headers. See [the root README](../README.md#plans-beyond-the-poc)
+  for the planned OAuth layer and move to service accounts for Jira/Miro/GitHub.
 - This bot creates a fresh MCP client/session per Teams message (the
   retro-bot server is a stateless `StreamableHTTPServerTransport`). Fine for
   smoke testing; consider a longer-lived session/connection pool for
