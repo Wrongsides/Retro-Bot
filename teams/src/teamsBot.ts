@@ -7,16 +7,16 @@ import { McpClient } from "./mcpClient.js";
  *
  * Commands (typed as plain chat messages):
  *  - "tools"          -> lists the tools exposed by the retro-bot MCP server
- *  - "create retro"   -> calls the miro_create_retro tool to build a new retro board to use
- *  - "cycle overview"  -> calls the cycle_overview tool (Jira actions completed/in
- *                         progress since the previous retro)
+ *  - "create retro"   -> calls miro_create_retro to add a template to the configured Miro board
+ *  - "cycle overview"  -> calls the cycle_overview tool for Jira issues and
+ *                         writes ticket notes to Miro
  *  - "retro summary"  -> calls the retro_summary tool (latest retro's columns,
- *                         mood board and experiment tracking box, plus Jira
- *                         action tickets), then prompts for feedback via an
+ *                         mood board and experiment tracking box, creates Jira
+ *                         action tickets, then prompts for feedback via an
  *                         Adaptive Card with star-rating buttons
  *  - "github examples" -> calls the retro_github_examples tool to find GitHub
- *                         code matching the problems and action items raised
- *                         in the most recent retro
+ *                         code and commits matching the problems and action
+ *                         items raised in the most recent retro
  *  - "sentiment trend" -> calls the retro_sentiment_trend tool to score team
  *                         sentiment across recent retros, then attaches an
  *                         Adaptive Card bar chart of the scores
@@ -31,9 +31,9 @@ import { McpClient } from "./mcpClient.js";
 const FEEDBACK_COMMAND_PATTERN = /^feedback\s+(\d+)(?:\s+(.+))?$/i;
 const SENTIMENT_TREND_ROW_PATTERN = /^-\s*(.+?):\s*(\d)\/5/;
 const USAGE_HELP =
-  'Hi! Try "tools" to list retro-bot MCP tools, "create retro" to build a new retro board to use, "cycle overview" for ' +
-  'a Jira summary since the last retro, "retro summary" for the latest retro\'s outcomes, ' +
-  '"github examples" to find GitHub code matching this retro\'s problems and action items, ' +
+  'Hi! Try "tools" to list retro-bot MCP tools, "create retro" to add a retro template to the configured Miro board, "cycle overview" for ' +
+  'Jira issues and Miro notes from a dated retro, "retro summary" for the latest retro\'s outcomes and Jira actions, ' +
+  '"github examples" to find GitHub code and commits matching this retro\'s problems and action items, ' +
   '"sentiment trend" to see how team sentiment has changed over recent retros, ' +
   '"feedback <1-5> [comment]" to rate Retro-Bot, or "feedback summary" to see the average rating.';
 

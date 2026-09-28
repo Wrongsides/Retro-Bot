@@ -45,9 +45,8 @@ export function registerJiraTools(server: McpServer, client: JiraClient = defaul
     {
       title: "Create Jira action",
       description:
-        "Create a Jira issue for a retrospective action item. Requires human confirmation of the " +
-        "summary and owner before being called — this tool performs the creation, it does not decide " +
-        "what should be created.",
+        "Create a Jira issue for a retrospective action item immediately when called. Review the summary " +
+        "and any suggested owner in the description before invoking; no confirmation is enforced.",
       inputSchema: {
         summary: z.string().describe("Short, specific action title, e.g. 'Add retry logic to X'"),
         description: z.string().optional().describe("Extra context, including suggested owner"),

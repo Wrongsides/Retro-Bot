@@ -5,18 +5,15 @@ Proof-of-concept MCP server for a **Retrospective Optimiser / Assistant**.
 ## What this is
 
 A raw [`@modelcontextprotocol/sdk`](https://github.com/modelcontextprotocol/typescript-sdk)
-MCP server exposing basic Jira, Miro and GitHub tools. This is the foundation — retro-specific
-capabilities (theme clustering, action drafting, follow-up nudges) will be built on top of
-these tools as the PoC develops.
+MCP server exposing Jira, Miro and GitHub tools alongside retro template creation, cycle
+overview, LLM-written summaries, GitHub examples, sentiment trends and feedback. Theme
+clustering, action drafting suggestions and between-retro nudges remain planned.
 
 **Why raw SDK, not Mastra?** This intentionally follows
 [`msmg-private/ai-tools` ADR-0005](https://github.com/msmg-private/ai-tools/blob/main/docs/adr/adr-0005-do-not-adopt-mastra-for-mcp-server.md),
 which found Mastra's MCP layer strips `_meta` from error/resource responses and only supports
-endpoint-level (not per-tool) auth. The team's `mony-agent` service does use Mastra, but as an
-**agent/orchestration layer that calls MCP tools as a client** — not for building the MCP
-server itself. A thin Mastra agent wrapper (matching `mony-agent`'s
-[ADR-0013](https://github.com/msmg-private/ai-tools/blob/main/docs/adr/adr-0013-adopt-mastra-route-handler-pattern.md)
-pattern) may be added later to front this server for a Teams bot.
+endpoint-level (not per-tool) auth. The current [Teams bot](../teams/README.md) calls this
+server directly as an MCP client; no Mastra wrapper is involved.
 
 ## Tools
 
@@ -28,43 +25,75 @@ pattern) may be added later to front this server for a Teams bot.
 | `miro_create_frame` | write | Create a Miro frame |
 | `miro_create_sticky_note` | write | Create a Miro sticky note |
 | `miro_create_retro` | write | Build an empty retro template (frames, columns, mood/dot-vote boxes, an Experiment Tracking box with a Go/No-Go on the previous experiment, dated marker) on a Miro board |
-| `cycle_overview` | read + write | Summarise Jira actions completed/in-progress since the previous retro, and write ticket summaries as sticky notes to a "Cycle overview" box below the current retro |
+| `cycle_overview` | read + write | Use a dated Miro sticky to find Jira issues marked Done and updated since that date plus all issues currently In Progress; append ticket summaries to a "Cycle overview" box below the latest retro |
 | `github_list_open_issues` | read | List open issues in a GitHub repo |
 | `github_create_issue` | write | Create a GitHub issue for a technical retro action |
-| `github_search_examples` | read | Search the GitHub codebase for real code matching a query |
-| `retro_summary` | read + write | Generate a warm narrative summary (via an LLM) of the latest retro's four columns, mood board and experiment tracking box, and create a Jira ticket (searching first to avoid duplicates) for each action item not already tracked. Fails closed (returns an error, no partial output) if the LLM call fails |
-| `retro_github_examples` | read | Search GitHub for real code and commits matching items raised in the "What should we do differently?" and "Action items" columns of the latest retro (the LLM turns each item into a concise search query and filters the raw results for relevance). Reports, per item, if GitHub's search index is still building rather than silently showing "no examples found" |
-| `retro_sentiment_trend` | read | Use an LLM to score team sentiment (1-5) for each of the most recent retros on the board, from every column plus the mood board, and summarise the trend across them. If scoring a retro fails, that retro is flagged rather than dropping the whole trend |
-| `retro_feedback` | write | Record a 1-5 star rating (with optional comment) of Retro-Bot itself, stored in a filesystem-backed feedback store |
+| `github_search_examples` | read | Search GitHub code for a supplied query (no LLM or commit search); reports search errors to the caller |
+| `retro_summary` | read + write | Generate an LLM narrative of the latest retro's four columns, mood and experiment, and create a Jira ticket for each untracked action item *before* calling the LLM. An LLM error returns no summary but does not roll back created tickets |
+| `retro_github_examples` | read | Search GitHub code and commits for problems and actions in the latest retro, using best-effort LLM-generated queries and relevance filtering. Flags incomplete GitHub search results per item |
+| `retro_sentiment_trend` | read | Score recent retros (five by default, configurable with `count`) from their columns and mood (1-5) with an LLM; list scores and, when possible, a trend narrative. Flags individual retros that could not be scored |
+| `retro_feedback` | write | Record a 1-5 star rating (with optional comment) of Retro-Bot itself, stored in a JSON file with real clients or in memory with null clients |
 | `retro_feedback_summary` | read | Report the average star rating and most recent comments from the feedback store |
 
-All "write" tools are designed to be called only after a human has confirmed the summary/title
-— they perform creation, they don't decide what should be created.
+**Writes and approval:** There is no enforced confirmation step. Calling a write tool
+creates the corresponding Miro/Jira/GitHub item immediately. In particular, `retro_summary`
+searches Jira and creates tickets for untracked action items *before* requesting its LLM
+narrative; if the LLM later fails, those tickets remain. `cycle_overview` reuses its box on
+repeat calls but appends ticket stickies again, including duplicates. Review the board and
+intended actions before invoking these tools.
 
 ## Running locally
 
+From the repository root (Node.js >=22; pnpm 11):
+
 ```bash
 pnpm install
-cp .env.example .env   # USE_NULL_CLIENTS=true by default — no credentials needed
-pnpm dev            # starts on http://localhost:8080
+cp mcp/.env.example mcp/.env   # USE_NULL_CLIENTS=true by default
+pnpm --filter mcp dev          # starts on http://localhost:8080
 ```
 
 Health check: `GET http://localhost:8080/health`
 
-MCP endpoint (stateless Streamable HTTP): `POST http://localhost:8080/mcp`
+MCP endpoint (stateless Streamable HTTP): `POST http://localhost:8080/mcp`.
+It is **unauthenticated**; do not expose it publicly or forward it through a tunnel.
 
 ### Inspecting tools interactively
 
+With the MCP server running, launch the
+[MCP Inspector](https://github.com/modelcontextprotocol/inspector) separately:
+
 ```bash
-pnpm build
-pnpm inspect
+pnpm dlx @modelcontextprotocol/inspector
 ```
+
+In the Inspector, select **Streamable HTTP** and connect to
+`http://localhost:8080/mcp`. The package's `inspect` script invokes the
+Inspector with `node dist/server.js` as a stdio server, so it does not
+connect to this HTTP endpoint.
 
 ### Using the live Jira/Miro/GitHub APIs
 
-Set `USE_NULL_CLIENTS=false` in `.env` and fill in the relevant credentials
+Set `USE_NULL_CLIENTS=false` in `mcp/.env` and fill in the relevant credentials
 (`JIRA_*`, `MIRO_*`, `GITHUB_*`). With null clients on (default), each integration returns
-realistic in-memory sample data and "creates" are tracked in-process for the demo.
+in-memory demo data; feedback is also in memory. With real clients, feedback is written to
+`FEEDBACK_STORE_PATH` (relative to the MCP process working directory; the package script
+runs from `mcp/`). Real Miro notes sent to the LLM may contain sensitive retro feedback;
+define visibility and retention before using non-demo content.
+The Teams commands use configured defaults, so set `MIRO_DEFAULT_BOARD_ID`,
+`JIRA_DEFAULT_PROJECT_KEY` and `GITHUB_DEFAULT_OWNER`/`GITHUB_DEFAULT_REPO` for
+the corresponding live integrations.
+
+### Testing
+
+From the repository root:
+
+```bash
+pnpm --filter mcp test
+pnpm --filter mcp typecheck
+pnpm --filter mcp build
+```
+
+There is no CI/CD or deployment workflow configured in this repository.
 
 ### LLM-backed narrative summaries
 
@@ -73,14 +102,19 @@ experiment tracking box into a short narrative, rather than a literal list of po
 `retro_github_examples` also calls an LLM, to turn each retro item into a concise GitHub
 search query and to filter the raw search results for relevance. `retro_sentiment_trend`
 calls an LLM once per retro (to score 1-5 sentiment from its columns and mood board) plus
-once more for an overall trend narrative across the scored retros. By default these run
-against a **local Ollama instance** — GitHub Models (the original default) was fully retired
-in July 2026, so there's no free hosted option to fall back to. With `USE_NULL_CLIENTS=true`
-(default) canned output is returned instead of calling a real LLM. If the LLM call fails,
-`retro_summary` fails closed — it returns an error rather than falling back to a
-partial/literal narrative. `retro_github_examples` and `retro_sentiment_trend` degrade
-gracefully instead: if the LLM call fails for a given retro item/retro, that item/retro is
-flagged with a note rather than failing the whole tool call.
+once more for an overall trend narrative across the scored retros. With
+`USE_NULL_CLIENTS=false`, the LLM endpoint defaults to a **local Ollama instance** — GitHub
+Models (the original default) was fully retired in July 2026. With `USE_NULL_CLIENTS=true`
+(the default) canned output is returned instead of calling a real LLM. If the LLM call fails,
+`retro_summary` returns an error rather than falling back to a partial/literal narrative
+(but does not roll back tickets created earlier). `retro_github_examples` instead falls
+back silently to a literal search query or unfiltered results if its LLM call fails.
+`retro_sentiment_trend` marks an individual retro as unscored if its LLM score call fails;
+an LLM failure when generating the trend narrative simply omits that narrative.
+
+The default null LLM returns generic narrative text, not a `Score`/`Reason` response.
+Thus the default null-client demo cannot produce sentiment scores or a Teams chart;
+meaningful sentiment analysis requires the real LLM.
 
 ### `retro_github_examples` searches both code and commits
 
@@ -91,29 +125,41 @@ list (commit messages sometimes reveal "we fixed this once before" history that 
 current-code search alone would miss). Both searches are capped at 3 results per item
 and, when an LLM is configured, filtered for relevance.
 
-GitHub's code/commit search index can lag a few minutes behind pushes, especially for
+GitHub's code/commit search index can lag behind pushes, especially for
 new or low-activity repositories — GitHub reports this as `incomplete_results: true`
 rather than an error. When that happens for a given retro item, `retro_github_examples`
 flags that item with a clear "Couldn't be checked — GitHub's code search index for this
 repository is still building. Try again shortly." note instead of silently reporting "no
 examples found", so it's never mistaken for a genuine no-match.
 
+Other GitHub search errors (including HTTP 403) are logged but skipped for that item.
+If all searches fail this way, the tool may say "No GitHub examples found"; this does
+**not** guarantee the repository has no matches. The direct `github_search_examples`
+tool instead returns an error for a failed code search.
+
 ### `retro_sentiment_trend` scores mood across recent retros
 
-`retro_sentiment_trend` finds the most recent retro outer frames on the board (5 by
-default, configurable via the `count` input), and for each one asks the LLM to score
-team sentiment 1-5 from every column plus the mood board, with a one-line reason. It
-then asks the LLM once more for a short narrative describing the trend across those
-scores (e.g. "sentiment dipped after the on-call incident before recovering"). The
-narrative is only requested when at least two retros were successfully scored.
+`retro_sentiment_trend` finds retro outer frames on the board (5 by default, configurable
+via the `count` input), and for each one asks the LLM to score team sentiment 1-5 from
+every column plus the mood board, with a one-line reason. It then asks the LLM once
+more for a short narrative describing the trend across those scores (e.g. "sentiment
+dipped after the on-call incident before recovering"). The narrative is only requested
+when at least two retros were successfully scored. Frames are ordered by vertical
+position, as the template places newer retros below older ones; moving frames manually
+can change which retros count as "most recent."
 
 If scoring a given retro fails (LLM error or an unparseable response), that retro is
 flagged inline — `"Couldn't be scored — sentiment analysis failed for this retro."` —
 rather than dropping it silently or failing the whole tool call, so a single bad LLM
 response doesn't hide the trend for every other retro.
 
-The Teams bot's `"sentiment trend"` command also renders the scores as a simple
-Adaptive Card bar chart (one bar per retro), in addition to the plain-text tool output.
+Scores are derived from the board's *current* sticky notes on every request, not stored
+as historical snapshots. Edited or missing notes can change past scores. Treat these
+LLM interpretations as a conversation prompt, not a measurement of individuals or
+the team's wellbeing.
+
+The Teams bot's `"sentiment trend"` command also renders a simple Adaptive Card
+bar chart for successfully scored retros, in addition to the plain-text tool output.
 
 **Local dev with Ollama (default):** `LlmClient` POSTs to `{LLM_BASE_URL}/chat/completions`
 using the standard OpenAI chat-completions shape, which [Ollama's OpenAI-compatible
@@ -149,9 +195,14 @@ replacement).
 ## Status
 
 Proof of concept — retro template creation and cycle overview (Jira actions summary written
-to the Miro board) are working end-to-end against real demo Jira/Miro accounts, driven from a
-Teams bot (see [`../teams/README.md`](../teams/README.md)). Deeper retro-specific reasoning
-(theme clustering, action drafting, follow-up nudges) is not yet implemented.
+to the Miro board) have been exercised against demo Jira/Miro accounts through the Teams
+bot (see [`../teams/README.md`](../teams/README.md)). Summaries, GitHub examples and
+sentiment trends are implemented; theme clustering, action drafting suggestions and
+follow-up nudges are not.
+
+`cycle_overview` takes the **first** dated retro sticky returned by Miro, not necessarily
+the most recent when a board holds multiple retros. Its Jira query includes every
+currently In Progress issue in the project, regardless of when it was updated.
 
 See [the root README](../README.md#plans-beyond-the-poc) for what's planned beyond the PoC —
 notably moving off personal API tokens onto dedicated Jira/Miro/GitHub service accounts, and

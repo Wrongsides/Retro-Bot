@@ -71,8 +71,9 @@ export function registerSentimentTrendTools(
     {
       title: "Retro sentiment trend",
       description:
-        "Uses the LLM to score team sentiment (1-5) for each of the most recent retros on the Miro board, from " +
-        "every column and the mood board, and summarises the trend across them.",
+        "Use an LLM to score team sentiment (1-5) from every column and the mood box of recent Miro retros " +
+        "(five by default, configurable with count), then describe the trend. Retros that cannot be scored " +
+        "are marked individually.",
       inputSchema: {
         boardId: z.string().optional().describe("Miro board ID, defaults to configured board"),
         count: z.number().int().positive().optional().describe("How many of the most recent retros to include, defaults to 5"),

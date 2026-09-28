@@ -232,7 +232,7 @@ export function registerRetroTemplateTools(server: McpServer, client: MiroClient
         boardId: z.string().optional().describe("Miro board ID, defaults to configured board"),
         date: z.string().optional().describe("Retro date as YYYY-MM-DD, defaults to today"),
         x: z.number().optional().describe("X position of the new template's top-left corner, defaults to 0"),
-        y: z.number().optional().describe("Y position of the new template's top-left corner, defaults to 0"),
+        y: z.number().optional().describe("Y position of the template's top-left corner, defaults below existing retro frames or to 0 on an empty board"),
       },
     },
     async ({ boardId, date, x, y }) => {
@@ -251,4 +251,3 @@ export function registerRetroTemplateTools(server: McpServer, client: MiroClient
     },
   );
 }
-

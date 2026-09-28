@@ -195,8 +195,8 @@ export function registerSummaryTools(
       title: "Retro summary",
       description:
         "Summarise the outcomes of the most recent retro on the Miro board across every column, the mood " +
-        "board and the experiment tracking box, and create a Jira ticket for each action item that is not " +
-        "already tracked (searching Jira first to avoid duplicates).",
+        "board and experiment tracking box. Create Jira tickets for untracked action items before generating " +
+        "the LLM narrative; tickets are not rolled back if generation fails.",
       inputSchema: {
         boardId: z.string().optional().describe("Miro board ID, defaults to configured board"),
         projectKey: z.string().optional().describe("Jira project key, defaults to configured project"),
@@ -221,8 +221,8 @@ export function registerSummaryTools(
     {
       title: "Retro GitHub examples",
       description:
-        "Look up real code in GitHub that matches the problems and action items raised in the most recent " +
-        "retro on the Miro board.",
+        "Find GitHub code and commits related to problems and actions in the most recent Miro retro, using " +
+        "best-effort LLM-generated queries and relevance filtering.",
       inputSchema: {
         boardId: z.string().optional().describe("Miro board ID, defaults to configured board"),
         githubOwner: z.string().optional().describe("GitHub org/user to scope example search to"),

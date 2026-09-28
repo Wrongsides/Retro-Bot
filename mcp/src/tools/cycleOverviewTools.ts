@@ -141,9 +141,9 @@ export function registerCycleOverviewTools(
     {
       title: "Cycle overview",
       description:
-        "Summarise Jira actions completed or still in progress since the previous retrospective, and add a " +
-        "sticky note per ticket to a dedicated 'Cycle overview' box below the current retro board. Reads the " +
-        "previous retro date from a dated sticky note on the Miro board, then searches Jira for matching issues.",
+        "Read the first dated retro sticky returned by Miro, find Jira issues marked Done and updated since " +
+        "that date plus all issues currently In Progress, and append a sticky per issue to a 'Cycle overview' " +
+        "box below the latest retro. Repeat calls append notes again, including duplicates.",
       inputSchema: {
         boardId: z.string().optional().describe("Miro board ID, defaults to configured board"),
         projectKey: z.string().optional().describe("Jira project key, defaults to configured project"),
@@ -162,5 +162,4 @@ export function registerCycleOverviewTools(
     },
   );
 }
-
 

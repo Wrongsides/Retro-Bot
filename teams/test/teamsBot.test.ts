@@ -192,7 +192,7 @@ describe("TeamsRetroBot message routing", () => {
     await adapter
       .send("hello there")
       .assertReply(
-        'Hi! Try "tools" to list retro-bot MCP tools, "create retro" to build a new retro board to use, "cycle overview" for a Jira summary since the last retro, "retro summary" for the latest retro\'s outcomes, "github examples" to find GitHub code matching this retro\'s problems and action items, "sentiment trend" to see how team sentiment has changed over recent retros, "feedback <1-5> [comment]" to rate Retro-Bot, or "feedback summary" to see the average rating.'
+        'Hi! Try "tools" to list retro-bot MCP tools, "create retro" to add a retro template to the configured Miro board, "cycle overview" for Jira issues and Miro notes from a dated retro, "retro summary" for the latest retro\'s outcomes and Jira actions, "github examples" to find GitHub code and commits matching this retro\'s problems and action items, "sentiment trend" to see how team sentiment has changed over recent retros, "feedback <1-5> [comment]" to rate Retro-Bot, or "feedback summary" to see the average rating.'
       );
   });
 

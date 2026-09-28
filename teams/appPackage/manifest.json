@@ -15,8 +15,8 @@
     "full": "Retro Bot Teams Assistant"
   },
   "description": {
-    "short": "Bridges Teams to the retro-bot MCP server.",
-    "full": "A Teams bot used to verify Bot Framework <-> Teams permissions and to smoke-test calls into the retro-bot MCP server (Jira, Miro, GitHub tools)."
+    "short": "Run retrospectives and track actions from Teams.",
+    "full": "Set up Miro retro templates on existing boards, review Jira actions, summarise retros, find GitHub code and commit examples, view LLM sentiment trends across recent retros and give feedback through the retro-bot MCP server."
   },
   "icons": {
     "color": "color.png",

@@ -46,8 +46,8 @@ export function registerGitHubTools(server: McpServer, client: GitHubClient = de
     {
       title: "Create GitHub issue",
       description:
-        "Create a GitHub issue for a retrospective action that is a technical/code-level task. Requires " +
-        "human confirmation of the title before being called.",
+        "Create a GitHub issue for a technical retrospective action immediately when called. Review the " +
+        "title and body first; no confirmation is enforced.",
       inputSchema: {
         title: z.string(),
         body: z.string().optional(),
