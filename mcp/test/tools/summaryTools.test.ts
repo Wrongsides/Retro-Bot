@@ -1,9 +1,10 @@
 import { describe, expect, test } from "vitest";
-import { buildRetroSummary, createActionTickets, formatSummary } from "../../src/tools/summaryTools.js";
+import { buildRetroGithubExamples, buildRetroSummary, createActionTickets, formatSummary } from "../../src/tools/summaryTools.js";
 import { buildRetroTemplateLayout, experimentBoxLayout, MOOD_BOX_TITLE } from "../../src/domain/retroTemplate.js";
 import { MiroClient, type MiroFrameLayout } from "../../src/clients/miroClient.js";
 import { JiraClient } from "../../src/clients/jiraClient.js";
 import { LlmClient } from "../../src/clients/llmClient.js";
+import { GitHubClient } from "../../src/clients/githubClient.js";
 
 const layout = buildRetroTemplateLayout(new Date("2026-09-26T00:00:00.000Z"));
 const experiment = experimentBoxLayout(layout.frame);
@@ -96,8 +97,69 @@ describe("buildRetroSummary", () => {
     const jiraClient = JiraClient.createNull({ searchIssues: [] });
     const llmClient = LlmClient.createNull({ failure: { status: 503 } });
 
-    await expect(buildRetroSummary(miroClient, jiraClient, llmClient, { projectKey: "RETRO" })).rejects.toThrow(
-      "LLM completion failed: 503",
+    await expect(
+      buildRetroSummary(miroClient, jiraClient, llmClient, { projectKey: "RETRO" }),
+    ).rejects.toThrow("LLM completion failed: 503");
+  });
+});
+
+describe("buildRetroGithubExamples", () => {
+  test("finds GitHub examples for the items raised in the problem columns", async () => {
+    const miroClient = MiroClient.createNull({
+      frames: framesFromLayout(),
+      stickyNotes: [
+        { id: "1", content: "Deploys went smoothly", x: 0, y: 0, frameId: "frame-column-0" },
+        { id: "2", content: "Review turnaround is too slow", x: 0, y: 0, frameId: "frame-column-1" },
+        { id: "3", content: "Fix the flaky pipeline", x: 0, y: 0, frameId: "frame-column-3" },
+      ],
+    });
+    const llmClient = LlmClient.createNull();
+    const githubClient = GitHubClient.createNull({
+      codeSearchResults: [
+        {
+          path: "src/clients/githubClient.ts",
+          url: "https://github.com/example-org/example-repo/blob/main/src/clients/githubClient.ts",
+          repository: "example-org/example-repo",
+        },
+      ],
+      commitSearchResults: [],
+    });
+
+    const examples = await buildRetroGithubExamples(miroClient, githubClient, llmClient);
+
+    expect(examples).toEqual([
+      {
+        item: "Review turnaround is too slow",
+        examples: [
+          {
+            path: "src/clients/githubClient.ts",
+            url: "https://github.com/example-org/example-repo/blob/main/src/clients/githubClient.ts",
+            repository: "example-org/example-repo",
+          },
+        ],
+        commits: [],
+      },
+      {
+        item: "Fix the flaky pipeline",
+        examples: [
+          {
+            path: "src/clients/githubClient.ts",
+            url: "https://github.com/example-org/example-repo/blob/main/src/clients/githubClient.ts",
+            repository: "example-org/example-repo",
+          },
+        ],
+        commits: [],
+      },
+    ]);
+  });
+
+  test("throws a clear error when the Miro board has no retro frame", async () => {
+    const miroClient = MiroClient.createNull({ frames: [] });
+    const llmClient = LlmClient.createNull();
+    const githubClient = GitHubClient.createNull();
+
+    await expect(buildRetroGithubExamples(miroClient, githubClient, llmClient)).rejects.toThrow(
+      "No previous retro date found on the Miro board",
     );
   });
 });

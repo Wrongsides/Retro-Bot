@@ -8,12 +8,18 @@ describe("MiroClient.createNull", () => {
     const notes = await client.getBoardStickyNotes();
 
     expect(notes).toEqual([
-      { id: "1", content: "Deploys felt smoother this sprint thanks to the new pipeline", x: 0, y: 0 },
-      { id: "2", content: "We keep forgetting to close out retro actions from last time", x: 100, y: 0 },
-      { id: "3", content: "Onboarding docs for the payments service are out of date", x: 0, y: 100 },
-      { id: "4", content: "Pairing session on Thursday was really useful, let's do more", x: 100, y: 100 },
-      { id: "5", content: "Incident review took too long because logs were hard to find", x: 0, y: 200 },
-      { id: "6", content: "Great shoutout to Sam for helping unblock the release", x: 100, y: 200 },
+      { id: "1", content: "Deploys felt smoother this sprint thanks to the new pipeline", x: 0, y: 0, frameId: "frame-column-0" },
+      {
+        id: "2",
+        content: "GitHub search only matches literal retro phrasing, missing relevant issues",
+        x: 100,
+        y: 0,
+        frameId: "frame-column-1",
+      },
+      { id: "3", content: "Onboarding docs for the payments service are out of date", x: 0, y: 100, frameId: "frame-column-2" },
+      { id: "4", content: "Pairing session on Thursday was really useful, let's do more", x: 100, y: 100, frameId: "frame-column-2" },
+      { id: "5", content: "Fix the flaky pipeline", x: 0, y: 200, frameId: "frame-column-3" },
+      { id: "6", content: "Great shoutout to Sam for helping unblock the release", x: 100, y: 200, frameId: "frame-mood" },
       { id: "7", content: "Retro: 2026-08-15", x: 200, y: 0 },
     ]);
   });
@@ -34,6 +40,21 @@ describe("MiroClient.createNull", () => {
     const notes = await client.getBoardStickyNotes();
 
     expect(notes).toEqual([]);
+  });
+
+  test("returns a default retro frame layout so retro_summary works without configuring the board", async () => {
+    const client = MiroClient.createNull();
+
+    const frames = await client.getBoardFrames();
+
+    expect(frames.map((frame) => frame.title)).toEqual([
+      "Retro - 2026-08-15",
+      "Mood",
+      "What went well?",
+      "What should we do differently?",
+      "What should we start doing?",
+      "Action items",
+    ]);
   });
 
   test("decodes HTML character entities Miro uses for emoji and apostrophes", async () => {

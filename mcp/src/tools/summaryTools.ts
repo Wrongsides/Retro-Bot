@@ -16,25 +16,32 @@ import {
   type ColumnSummary,
   type ExperimentSummary,
 } from "../domain/retroSummary.js";
+import { findGithubExamples, formatGithubExamples, type GithubExampleGroup } from "../domain/githubExamples.js";
 import { buildFeedbackSummary, formatFeedbackSummary } from "../domain/feedbackSummary.js";
 import {
   jiraClient as defaultJiraClient,
   miroClient as defaultMiroClient,
   feedbackStore as defaultFeedbackStore,
   llmClient as defaultLlmClient,
+  githubClient as defaultGithubClient,
 } from "../clients/index.js";
 import { JiraClient, type JiraIssue } from "../clients/jiraClient.js";
-import { MiroClient } from "../clients/miroClient.js";
+import { MiroClient, type MiroFrameLayout, type MiroStickyNote } from "../clients/miroClient.js";
 import { FeedbackStore } from "../clients/feedbackStore.js";
 import { LlmClient } from "../clients/llmClient.js";
+import { GitHubClient } from "../clients/githubClient.js";
 import { logger } from "../utils/logger.js";
 
 const ACTION_ITEMS_COLUMN_TITLE = "Action items";
+const PROBLEM_COLUMN_TITLE = "What should we do differently?";
+const GITHUB_EXAMPLE_COLUMN_TITLES = [PROBLEM_COLUMN_TITLE, ACTION_ITEMS_COLUMN_TITLE];
 const ACTION_TICKET_LABEL = "retro-action";
 
 export interface RetroSummaryOptions {
   boardId?: string;
   projectKey?: string;
+  githubOwner?: string;
+  githubRepo?: string;
 }
 
 export interface TicketResult {
@@ -82,24 +89,41 @@ export async function createActionTickets(
   return { created, skipped };
 }
 
+interface RetroBoardData {
+  outerFrameTitle: string;
+  frames: MiroFrameLayout[];
+  outerFrame: MiroFrameLayout;
+  stickyNotes: MiroStickyNote[];
+  columns: ColumnSummary[];
+}
+
+async function loadRetroBoard(miroClient: MiroClient, boardId: string | undefined): Promise<RetroBoardData> {
+  const frames = await miroClient.getBoardFrames(boardId);
+  const outerFrame = findLatestRetroFrame(frames);
+  if (!outerFrame) {
+    throw new Error("No previous retro date found on the Miro board");
+  }
+
+  const stickyNotes = await miroClient.getBoardStickyNotes(boardId);
+
+  const columns = RETRO_COLUMN_TITLES.map((title) => {
+    const columnFrame = findColumnFrame(frames, outerFrame, title);
+    return columnFrame ? summarizeColumn(stickyNotes, columnFrame) : { title, items: [] };
+  });
+
+  return { outerFrameTitle: outerFrame.title, frames, outerFrame, stickyNotes, columns };
+}
+
 export async function buildRetroSummary(
   miroClient: MiroClient,
   jiraClient: JiraClient,
   llmClient: LlmClient,
   options: RetroSummaryOptions = {},
 ): Promise<RetroSummary> {
-  const frames = await miroClient.getBoardFrames(options.boardId);
-  const outerFrame = findLatestRetroFrame(frames);
-  if (!outerFrame) {
-    throw new Error("No previous retro date found on the Miro board");
-  }
-
-  const stickyNotes = await miroClient.getBoardStickyNotes(options.boardId);
-
-  const columns = RETRO_COLUMN_TITLES.map((title) => {
-    const columnFrame = findColumnFrame(frames, outerFrame, title);
-    return columnFrame ? summarizeColumn(stickyNotes, columnFrame) : { title, items: [] };
-  });
+  const { outerFrameTitle, frames, outerFrame, stickyNotes, columns } = await loadRetroBoard(
+    miroClient,
+    options.boardId,
+  );
 
   const moodFrame = findColumnFrame(frames, outerFrame, MOOD_BOX_TITLE);
   const mood = moodFrame ? summarizeMood(stickyNotes, moodFrame) : [];
@@ -114,10 +138,29 @@ export async function buildRetroSummary(
   const tickets = await createActionTickets(jiraClient, actionItems, projectKey);
 
   const narrative = await llmClient.complete(
-    buildNarrativePrompt({ retroFrameTitle: outerFrame.title, columns, mood, experiment }),
+    buildNarrativePrompt({ retroFrameTitle: outerFrameTitle, columns, mood, experiment }),
   );
 
-  return { retroFrameTitle: outerFrame.title, columns, mood, experiment, tickets, narrative };
+  return { retroFrameTitle: outerFrameTitle, columns, mood, experiment, tickets, narrative };
+}
+
+export async function buildRetroGithubExamples(
+  miroClient: MiroClient,
+  githubClient: GitHubClient,
+  llmClient: LlmClient,
+  options: RetroSummaryOptions = {},
+): Promise<GithubExampleGroup[]> {
+  const { columns } = await loadRetroBoard(miroClient, options.boardId);
+
+  const itemsToSearchGithub = columns
+    .filter((column) => GITHUB_EXAMPLE_COLUMN_TITLES.includes(column.title))
+    .flatMap((column) => column.items);
+
+  return findGithubExamples(githubClient, itemsToSearchGithub, {
+    owner: options.githubOwner,
+    repo: options.githubRepo,
+    llmClient,
+  });
 }
 
 export function formatSummary(summary: RetroSummary): string {
@@ -144,6 +187,7 @@ export function registerSummaryTools(
   jiraClient: JiraClient = defaultJiraClient,
   feedbackStore: FeedbackStore = defaultFeedbackStore,
   llmClient: LlmClient = defaultLlmClient,
+  githubClient: GitHubClient = defaultGithubClient,
 ) {
   server.registerTool(
     "retro_summary",
@@ -160,10 +204,43 @@ export function registerSummaryTools(
     },
     async ({ boardId, projectKey }) => {
       try {
-        const summary = await buildRetroSummary(miroClient, jiraClient, llmClient, { boardId, projectKey });
+        const summary = await buildRetroSummary(miroClient, jiraClient, llmClient, {
+          boardId,
+          projectKey,
+        });
         return { content: [{ type: "text" as const, text: formatSummary(summary) }] };
       } catch (err) {
         logger.error("retro_summary failed", { error: String(err) });
+        return toolError(err instanceof Error ? err.message : String(err));
+      }
+    },
+  );
+
+  server.registerTool(
+    "retro_github_examples",
+    {
+      title: "Retro GitHub examples",
+      description:
+        "Look up real code in GitHub that matches the problems and action items raised in the most recent " +
+        "retro on the Miro board.",
+      inputSchema: {
+        boardId: z.string().optional().describe("Miro board ID, defaults to configured board"),
+        githubOwner: z.string().optional().describe("GitHub org/user to scope example search to"),
+        githubRepo: z.string().optional().describe("GitHub repo to scope example search to (requires githubOwner)"),
+      },
+    },
+    async ({ boardId, githubOwner, githubRepo }) => {
+      try {
+        const examples = await buildRetroGithubExamples(miroClient, githubClient, llmClient, {
+          boardId,
+          githubOwner,
+          githubRepo,
+        });
+        const formatted = formatGithubExamples(examples);
+        const text = formatted || "No GitHub examples found for the items raised in this retro.";
+        return { content: [{ type: "text" as const, text }] };
+      } catch (err) {
+        logger.error("retro_github_examples failed", { error: String(err) });
         return toolError(err instanceof Error ? err.message : String(err));
       }
     },

@@ -23,6 +23,9 @@ Emulator):
   tickets created from the action items), then prompts for feedback with an
   Adaptive Card showing five star-rating buttons. Tapping a star calls
   `retro_feedback` with the selected rating.
+- `github examples` — calls the `retro_github_examples` MCP tool to search the
+  GitHub codebase for real code examples matching the problems and action
+  items raised in the latest retro.
 - `feedback <1-5> [comment]` — calls the `retro_feedback` MCP tool directly to
   record a star rating (and optional comment) for Retro-Bot itself, without
   waiting for the card prompt.

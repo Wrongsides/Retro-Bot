@@ -43,6 +43,10 @@ Teams client ⇄ Azure Bot / Bot Framework ⇄ teams (MCP client) ⇄ mcp (MCP s
   original default, was retired in July 2026), but any OpenAI-compatible endpoint works — see
   `mcp/README.md`. Fails closed if the LLM call fails, rather than falling back to a partial
   summary.
+- **`retro_github_examples`** — a standalone tool (and Teams `github examples` command) that
+  searches the GitHub codebase for real code examples matching the problems and action items
+  raised in the latest retro, using the same LLM to turn each item into a search query and
+  filter results for relevance. Fails closed if the LLM call fails.
 - **`retro_feedback`** — lets users rate Retro-Bot itself (1-5 stars, optional comment),
   recorded to a simple filesystem-backed feedback store as a first step towards tracking
   satisfaction over time.

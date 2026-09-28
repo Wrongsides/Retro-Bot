@@ -107,6 +107,19 @@ describe("TeamsRetroBot message routing", () => {
     expect(mcpClient.trackCalls()).toEqual([{ toolName: "retro_feedback", args: { rating: 4 } }]);
   });
 
+  test('"github examples" calls retro_github_examples and relays the result', async () => {
+    const mcpClient = McpClient.createNull({
+      responses: { retro_github_examples: "example-org/example-repo src/clients/githubClient.ts" },
+    });
+    const adapter = createTestAdapter(mcpClient);
+
+    await adapter
+      .send("github examples")
+      .assertReply("retro_github_examples result:\nexample-org/example-repo src/clients/githubClient.ts");
+
+    expect(mcpClient.trackCalls()).toEqual([{ toolName: "retro_github_examples", args: {} }]);
+  });
+
   test('"feedback summary" calls retro_feedback_summary and relays the result', async () => {
     const mcpClient = McpClient.createNull({
       responses: { retro_feedback_summary: "Retro-Bot feedback: 4.0/5 average from 3 ratings" },
@@ -138,7 +151,7 @@ describe("TeamsRetroBot message routing", () => {
     await adapter
       .send("hello there")
       .assertReply(
-        'Hi! Try "tools" to list retro-bot MCP tools, "create retro" to run a smoke test, "cycle overview" for a Jira summary since the last retro, "retro summary" for the latest retro\'s outcomes, "feedback <1-5> [comment]" to rate Retro-Bot, or "feedback summary" to see the average rating.'
+        'Hi! Try "tools" to list retro-bot MCP tools, "create retro" to build a new retro board to use, "cycle overview" for a Jira summary since the last retro, "retro summary" for the latest retro\'s outcomes, "github examples" to find GitHub code matching this retro\'s problems and action items, "feedback <1-5> [comment]" to rate Retro-Bot, or "feedback summary" to see the average rating.'
       );
   });
 

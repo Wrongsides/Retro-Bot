@@ -7,13 +7,16 @@ import { McpClient } from "./mcpClient.js";
  *
  * Commands (typed as plain chat messages):
  *  - "tools"          -> lists the tools exposed by the retro-bot MCP server
- *  - "create retro"   -> calls the miro_create_retro tool as a smoke test
+ *  - "create retro"   -> calls the miro_create_retro tool to build a new retro board to use
  *  - "cycle overview"  -> calls the cycle_overview tool (Jira actions completed/in
  *                         progress since the previous retro)
  *  - "retro summary"  -> calls the retro_summary tool (latest retro's columns,
  *                         mood board and experiment tracking box, plus Jira
  *                         action tickets), then prompts for feedback via an
  *                         Adaptive Card with star-rating buttons
+ *  - "github examples" -> calls the retro_github_examples tool to find GitHub
+ *                         code matching the problems and action items raised
+ *                         in the most recent retro
  *  - "feedback <1-5> [comment]" -> calls the retro_feedback tool to rate Retro-Bot
  *  - "feedback summary"        -> calls the retro_feedback_summary tool for the
  *                                 average rating and recent comments
@@ -24,8 +27,9 @@ import { McpClient } from "./mcpClient.js";
  */
 const FEEDBACK_COMMAND_PATTERN = /^feedback\s+(\d+)(?:\s+(.+))?$/i;
 const USAGE_HELP =
-  'Hi! Try "tools" to list retro-bot MCP tools, "create retro" to run a smoke test, "cycle overview" for ' +
+  'Hi! Try "tools" to list retro-bot MCP tools, "create retro" to build a new retro board to use, "cycle overview" for ' +
   'a Jira summary since the last retro, "retro summary" for the latest retro\'s outcomes, ' +
+  '"github examples" to find GitHub code matching this retro\'s problems and action items, ' +
   '"feedback <1-5> [comment]" to rate Retro-Bot, or "feedback summary" to see the average rating.';
 
 function buildFeedbackCard(): Attachment {
@@ -82,6 +86,9 @@ export class TeamsRetroBot extends TeamsActivityHandler {
           const result = await this.mcpClient.callTool("retro_summary", {});
           await context.sendActivity(`retro_summary result:\n${result}`);
           await context.sendActivity({ attachments: [buildFeedbackCard()] });
+        } else if (lowerText === "github examples") {
+          const result = await this.mcpClient.callTool("retro_github_examples", {});
+          await context.sendActivity(`retro_github_examples result:\n${result}`);
         } else if (lowerText === "feedback summary") {
           const result = await this.mcpClient.callTool("retro_feedback_summary", {});
           await context.sendActivity(`retro_feedback_summary result:\n${result}`);

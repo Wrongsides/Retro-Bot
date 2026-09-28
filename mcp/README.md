@@ -31,7 +31,9 @@ pattern) may be added later to front this server for a Teams bot.
 | `cycle_overview` | read + write | Summarise Jira actions completed/in-progress since the previous retro, and write ticket summaries as sticky notes to a "Cycle overview" box below the current retro |
 | `github_list_open_issues` | read | List open issues in a GitHub repo |
 | `github_create_issue` | write | Create a GitHub issue for a technical retro action |
+| `github_search_examples` | read | Search the GitHub codebase for real code matching a query |
 | `retro_summary` | read + write | Generate a warm narrative summary (via an LLM) of the latest retro's four columns, mood board and experiment tracking box, and create a Jira ticket (searching first to avoid duplicates) for each action item not already tracked. Fails closed (returns an error, no partial output) if the LLM call fails |
+| `retro_github_examples` | read | Search GitHub for real code and commits matching items raised in the "What should we do differently?" and "Action items" columns of the latest retro (the LLM turns each item into a concise search query and filters the raw results for relevance). Reports, per item, if GitHub's search index is still building rather than silently showing "no examples found" |
 | `retro_feedback` | write | Record a 1-5 star rating (with optional comment) of Retro-Bot itself, stored in a filesystem-backed feedback store |
 | `retro_feedback_summary` | read | Report the average star rating and most recent comments from the feedback store |
 
@@ -66,12 +68,32 @@ realistic in-memory sample data and "creates" are tracked in-process for the dem
 ### LLM-backed narrative summaries
 
 `retro_summary` calls an LLM to turn the retro's raw sticky notes, mood reactions and
-experiment tracking box into a short narrative, rather than a literal list of post-its. By
-default this runs against a **local Ollama instance** — GitHub Models (the original default)
-was fully retired in July 2026, so there's no free hosted option to fall back to. With
-`USE_NULL_CLIENTS=true` (default) a canned narrative is returned instead of calling a real
-LLM. If the LLM call fails, `retro_summary` fails closed — it returns an error rather than
-falling back to a partial/literal summary.
+experiment tracking box into a short narrative, rather than a literal list of post-its.
+`retro_github_examples` also calls an LLM, to turn each retro item into a concise GitHub
+search query and to filter the raw search results for relevance. By default these run
+against a **local Ollama instance** — GitHub Models (the original default) was fully retired
+in July 2026, so there's no free hosted option to fall back to. With `USE_NULL_CLIENTS=true`
+(default) canned output is returned instead of calling a real LLM. If the LLM call fails,
+`retro_summary` fails closed — it returns an error rather than falling back to a
+partial/literal narrative. `retro_github_examples` degrades gracefully instead: if the LLM
+call fails for a given retro item, it falls back to a plain-text search query and skips
+relevance filtering for that item, rather than failing the whole tool call.
+
+### `retro_github_examples` searches both code and commits
+
+For each retro item, `retro_github_examples` searches GitHub's `/search/code` and
+`/search/commits` endpoints (scoped to the configured repo/org) and reports each
+separately — code matches as file examples, commit matches as a "Relevant commits"
+list (commit messages sometimes reveal "we fixed this once before" history that a
+current-code search alone would miss). Both searches are capped at 3 results per item
+and, when an LLM is configured, filtered for relevance.
+
+GitHub's code/commit search index can lag a few minutes behind pushes, especially for
+new or low-activity repositories — GitHub reports this as `incomplete_results: true`
+rather than an error. When that happens for a given retro item, `retro_github_examples`
+flags that item with a clear "Couldn't be checked — GitHub's code search index for this
+repository is still building. Try again shortly." note instead of silently reporting "no
+examples found", so it's never mistaken for a genuine no-match.
 
 **Local dev with Ollama (default):** `LlmClient` POSTs to `{LLM_BASE_URL}/chat/completions`
 using the standard OpenAI chat-completions shape, which [Ollama's OpenAI-compatible

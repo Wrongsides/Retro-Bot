@@ -1,5 +1,6 @@
 import { config } from "../config.js";
 import { HttpClient, type ResponseMap } from "./httpClient.js";
+import { buildRetroTemplateLayout } from "../domain/retroTemplate.js";
 
 export interface MiroStickyNote {
   id: string;
@@ -114,14 +115,31 @@ function plainTextContent(htmlContent: string): string {
   return decodeHtmlEntities(htmlContent.replace(/<[^>]*>/g, ""));
 }
 
+const NULL_RETRO_DATE = new Date("2026-08-15T00:00:00.000Z");
+const NULL_LAYOUT = buildRetroTemplateLayout(NULL_RETRO_DATE);
+
+function defaultFrames(): MiroFrameLayout[] {
+  return [
+    { id: "frame-outer", ...NULL_LAYOUT.frame },
+    { id: "frame-mood", ...NULL_LAYOUT.moodBox },
+    ...NULL_LAYOUT.columns.map((column, index) => ({ id: `frame-column-${index}`, ...column })),
+  ];
+}
+
 function defaultStickyNotes(): MiroStickyNote[] {
   return [
-    { id: "1", content: "Deploys felt smoother this sprint thanks to the new pipeline", x: 0, y: 0 },
-    { id: "2", content: "We keep forgetting to close out retro actions from last time", x: 100, y: 0 },
-    { id: "3", content: "Onboarding docs for the payments service are out of date", x: 0, y: 100 },
-    { id: "4", content: "Pairing session on Thursday was really useful, let's do more", x: 100, y: 100 },
-    { id: "5", content: "Incident review took too long because logs were hard to find", x: 0, y: 200 },
-    { id: "6", content: "Great shoutout to Sam for helping unblock the release", x: 100, y: 200 },
+    { id: "1", content: "Deploys felt smoother this sprint thanks to the new pipeline", x: 0, y: 0, frameId: "frame-column-0" },
+    {
+      id: "2",
+      content: "GitHub search only matches literal retro phrasing, missing relevant issues",
+      x: 100,
+      y: 0,
+      frameId: "frame-column-1",
+    },
+    { id: "3", content: "Onboarding docs for the payments service are out of date", x: 0, y: 100, frameId: "frame-column-2" },
+    { id: "4", content: "Pairing session on Thursday was really useful, let's do more", x: 100, y: 100, frameId: "frame-column-2" },
+    { id: "5", content: "Fix the flaky pipeline", x: 0, y: 200, frameId: "frame-column-3" },
+    { id: "6", content: "Great shoutout to Sam for helping unblock the release", x: 100, y: 200, frameId: "frame-mood" },
     { id: "7", content: "Retro: 2026-08-15", x: 200, y: 0 },
   ];
 }
@@ -140,7 +158,7 @@ function defaultNullResponses(options: MiroClientNullOptions): ResponseMap {
 
   const pages = options.stickyNotePages ?? [options.stickyNotes ?? defaultStickyNotes()];
   const textItems = options.textItems ?? [];
-  const frames = options.frames ?? [];
+  const frames = options.frames ?? defaultFrames();
   let frameCounter = 1;
   let stickyCounter = 1;
 

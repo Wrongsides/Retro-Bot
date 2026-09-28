@@ -68,4 +68,37 @@ export function registerGitHubTools(server: McpServer, client: GitHubClient = de
       }
     },
   );
+
+  server.registerTool(
+    "github_search_examples",
+    {
+      title: "Search GitHub for code examples",
+      description:
+        "Search the GitHub codebase for real code matching a query. Useful for finding concrete evidence " +
+        "in the code of a problem raised in a retro.",
+      inputSchema: {
+        query: z.string().describe("Search text, e.g. a problem or action item raised in the retro"),
+        owner: z.string().optional().describe("Repository owner or GitHub org to scope the search to"),
+        repo: z.string().optional().describe("Repository name to scope the search to (requires owner)"),
+      },
+    },
+    async ({ query, owner, repo }) => {
+      try {
+        const results = await client.searchCode(query, owner, repo);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: results.length
+                ? results.map((r) => `${r.repository} ${r.path} — ${r.url}`).join("\n")
+                : "No matching code found.",
+            },
+          ],
+        };
+      } catch (err) {
+        logger.error("github_search_examples failed", { error: String(err) });
+        return toolError(err instanceof Error ? err.message : String(err));
+      }
+    },
+  );
 }
