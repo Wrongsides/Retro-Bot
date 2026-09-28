@@ -120,6 +120,47 @@ describe("TeamsRetroBot message routing", () => {
     expect(mcpClient.trackCalls()).toEqual([{ toolName: "retro_github_examples", args: {} }]);
   });
 
+  test('"sentiment trend" calls retro_sentiment_trend, relays the result, and attaches a bar-chart card', async () => {
+    const mcpClient = McpClient.createNull({
+      responses: {
+        retro_sentiment_trend:
+          "Sentiment trend\n\n- Retro - 2026-08-01: 2/5 — CI frustration\n- Retro - 2026-08-15: 4/5 — Smooth release\n\nTrend: Sentiment improved.",
+      },
+    });
+    const adapter = createTestAdapter(mcpClient);
+
+    await adapter
+      .send("sentiment trend")
+      .assertReply((activity) => {
+        expect(activity.text).toContain("retro_sentiment_trend result:");
+        expect(activity.text).toContain("Trend: Sentiment improved.");
+      })
+      .assertReply((activity) => {
+        expect(activity.attachments).toHaveLength(1);
+        expect(activity.attachments?.[0].contentType).toBe("application/vnd.microsoft.card.adaptive");
+        const card = activity.attachments?.[0].content as {
+          body: { type: string; items?: { type: string; text?: string; width?: string }[] }[];
+        };
+        const rows = card.body.filter((item) => item.type === "ColumnSet");
+        expect(rows).toHaveLength(2);
+      });
+
+    expect(mcpClient.trackCalls()).toEqual([{ toolName: "retro_sentiment_trend", args: {} }]);
+  });
+
+  test('"sentiment trend" skips the chart card when no retro was scored', async () => {
+    const mcpClient = McpClient.createNull({
+      responses: { retro_sentiment_trend: "No retros found on the board to analyse." },
+    });
+    const adapter = createTestAdapter(mcpClient);
+
+    await adapter
+      .send("sentiment trend")
+      .assertReply("retro_sentiment_trend result:\nNo retros found on the board to analyse.");
+
+    expect(mcpClient.trackCalls()).toEqual([{ toolName: "retro_sentiment_trend", args: {} }]);
+  });
+
   test('"feedback summary" calls retro_feedback_summary and relays the result', async () => {
     const mcpClient = McpClient.createNull({
       responses: { retro_feedback_summary: "Retro-Bot feedback: 4.0/5 average from 3 ratings" },
@@ -151,7 +192,7 @@ describe("TeamsRetroBot message routing", () => {
     await adapter
       .send("hello there")
       .assertReply(
-        'Hi! Try "tools" to list retro-bot MCP tools, "create retro" to build a new retro board to use, "cycle overview" for a Jira summary since the last retro, "retro summary" for the latest retro\'s outcomes, "github examples" to find GitHub code matching this retro\'s problems and action items, "feedback <1-5> [comment]" to rate Retro-Bot, or "feedback summary" to see the average rating.'
+        'Hi! Try "tools" to list retro-bot MCP tools, "create retro" to build a new retro board to use, "cycle overview" for a Jira summary since the last retro, "retro summary" for the latest retro\'s outcomes, "github examples" to find GitHub code matching this retro\'s problems and action items, "sentiment trend" to see how team sentiment has changed over recent retros, "feedback <1-5> [comment]" to rate Retro-Bot, or "feedback summary" to see the average rating.'
       );
   });
 

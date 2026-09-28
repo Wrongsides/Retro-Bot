@@ -105,6 +105,15 @@ export function findLatestRetroFrame<T extends TitledFrame>(frames: T[]): T | un
 }
 
 /**
+ * Finds every retro outer frame on the board, oldest first, since new retros
+ * are auto-offset below existing ones (see resolveOrigin in
+ * retroTemplateTools.ts).
+ */
+export function findAllRetroFrames<T extends TitledFrame>(frames: T[]): T[] {
+  return frames.filter((frame) => RETRO_FRAME_TITLE_PATTERN.test(frame.title)).sort((a, b) => a.y - b.y);
+}
+
+/**
  * Finds a column frame (e.g. "Action items") that visually sits inside a
  * given outer retro frame. Miro does not parent column frames to the outer
  * frame, so this matches purely by title and geometric containment.

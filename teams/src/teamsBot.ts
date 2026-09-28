@@ -17,6 +17,9 @@ import { McpClient } from "./mcpClient.js";
  *  - "github examples" -> calls the retro_github_examples tool to find GitHub
  *                         code matching the problems and action items raised
  *                         in the most recent retro
+ *  - "sentiment trend" -> calls the retro_sentiment_trend tool to score team
+ *                         sentiment across recent retros, then attaches an
+ *                         Adaptive Card bar chart of the scores
  *  - "feedback <1-5> [comment]" -> calls the retro_feedback tool to rate Retro-Bot
  *  - "feedback summary"        -> calls the retro_feedback_summary tool for the
  *                                 average rating and recent comments
@@ -26,10 +29,12 @@ import { McpClient } from "./mcpClient.js";
  * text and a `value` payload of `{ rating }`, which is routed to retro_feedback.
  */
 const FEEDBACK_COMMAND_PATTERN = /^feedback\s+(\d+)(?:\s+(.+))?$/i;
+const SENTIMENT_TREND_ROW_PATTERN = /^-\s*(.+?):\s*(\d)\/5/;
 const USAGE_HELP =
   'Hi! Try "tools" to list retro-bot MCP tools, "create retro" to build a new retro board to use, "cycle overview" for ' +
   'a Jira summary since the last retro, "retro summary" for the latest retro\'s outcomes, ' +
   '"github examples" to find GitHub code matching this retro\'s problems and action items, ' +
+  '"sentiment trend" to see how team sentiment has changed over recent retros, ' +
   '"feedback <1-5> [comment]" to rate Retro-Bot, or "feedback summary" to see the average rating.';
 
 function buildFeedbackCard(): Attachment {
@@ -51,6 +56,38 @@ function buildFeedbackCard(): Attachment {
     })),
   });
 }
+
+function parseSentimentTrendRows(text: string): { title: string; score: number }[] {
+  return text
+    .split("\n")
+    .map((line) => line.match(SENTIMENT_TREND_ROW_PATTERN))
+    .filter((match): match is RegExpMatchArray => match !== null)
+    .map((match) => ({ title: match[1].trim(), score: Number(match[2]) }));
+}
+
+function buildSentimentTrendCard(rows: { title: string; score: number }[]): Attachment {
+  return CardFactory.adaptiveCard({
+    $schema: "http://adaptivecards.io/schemas/adaptive-card.json",
+    type: "AdaptiveCard",
+    version: "1.3",
+    body: [
+      { type: "TextBlock", text: "Sentiment trend", weight: "bolder", size: "medium" },
+      ...rows.map((row) => ({
+        type: "ColumnSet",
+        columns: [
+          { type: "Column", width: "stretch", items: [{ type: "TextBlock", text: row.title, wrap: true }] },
+          {
+            type: "Column",
+            width: `${row.score}`,
+            items: [{ type: "TextBlock", text: "█".repeat(row.score), color: "accent" }],
+          },
+          { type: "Column", width: `${5 - row.score || 1}`, items: [{ type: "TextBlock", text: `${row.score}/5` }] },
+        ],
+      })),
+    ],
+  });
+}
+
 
 export class TeamsRetroBot extends TeamsActivityHandler {
   constructor(private readonly mcpClient: McpClient = McpClient.create()) {
@@ -89,6 +126,13 @@ export class TeamsRetroBot extends TeamsActivityHandler {
         } else if (lowerText === "github examples") {
           const result = await this.mcpClient.callTool("retro_github_examples", {});
           await context.sendActivity(`retro_github_examples result:\n${result}`);
+        } else if (lowerText === "sentiment trend") {
+          const result = await this.mcpClient.callTool("retro_sentiment_trend", {});
+          await context.sendActivity(`retro_sentiment_trend result:\n${result}`);
+          const rows = parseSentimentTrendRows(result);
+          if (rows.length > 0) {
+            await context.sendActivity({ attachments: [buildSentimentTrendCard(rows)] });
+          }
         } else if (lowerText === "feedback summary") {
           const result = await this.mcpClient.callTool("retro_feedback_summary", {});
           await context.sendActivity(`retro_feedback_summary result:\n${result}`);

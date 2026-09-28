@@ -4,7 +4,9 @@ import {
   DOT_VOTE_BOX_TITLE,
   experimentBoxLayout,
   extractExperimentText,
+  findAllRetroFrames,
   findExperimentBox,
+  findLatestRetroFrame,
   MOOD_BOX_TITLE,
   RETRO_COLUMN_TITLES,
   STICKY_NOTE_SIZE,
@@ -196,6 +198,33 @@ describe("buildRetroTemplateLayout", () => {
     expect(originAtZero.dotVoteBoxSticky.content.length).toBeGreaterThan(0);
     expect(originElsewhere.moodBoxSticky).toEqual(originAtZero.moodBoxSticky);
     expect(originElsewhere.dotVoteBoxSticky).toEqual(originAtZero.dotVoteBoxSticky);
+  });
+});
+
+describe("findAllRetroFrames", () => {
+  test("returns every retro outer frame, oldest first", () => {
+    const oldest = { title: "Retro - 2026-08-01", x: 0, y: 0, width: 2350, height: 1250 };
+    const middle = { title: "Retro - 2026-08-15", x: 0, y: 2000, width: 2350, height: 1250 };
+    const newest = { title: "Retro - 2026-08-29", x: 0, y: 4000, width: 2350, height: 1250 };
+    const frames = [newest, oldest, middle, { title: "Experiment Tracking", x: 0, y: 1650, width: 478, height: 308 }];
+
+    const found = findAllRetroFrames(frames);
+
+    expect(found.map((frame) => frame.title)).toEqual([oldest.title, middle.title, newest.title]);
+  });
+
+  test("returns an empty array when there are no retro frames", () => {
+    expect(findAllRetroFrames([{ title: "Experiment Tracking", x: 0, y: 0, width: 478, height: 308 }])).toEqual([]);
+  });
+
+  test("agrees with findLatestRetroFrame on which retro is newest", () => {
+    const oldest = { title: "Retro - 2026-08-01", x: 0, y: 0, width: 2350, height: 1250 };
+    const newest = { title: "Retro - 2026-08-29", x: 0, y: 4000, width: 2350, height: 1250 };
+    const frames = [oldest, newest];
+
+    const all = findAllRetroFrames(frames);
+
+    expect(all[all.length - 1]).toEqual(findLatestRetroFrame(frames));
   });
 });
 

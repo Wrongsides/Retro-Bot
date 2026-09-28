@@ -26,6 +26,9 @@ Emulator):
 - `github examples` — calls the `retro_github_examples` MCP tool to search the
   GitHub codebase for real code examples matching the problems and action
   items raised in the latest retro.
+- `sentiment trend` — calls the `retro_sentiment_trend` MCP tool, which uses
+  the LLM to score team sentiment (1-5) for the most recent retros on the
+  board, then posts the scores/reasons as text plus a bar-chart Adaptive Card.
 - `feedback <1-5> [comment]` — calls the `retro_feedback` MCP tool directly to
   record a star rating (and optional comment) for Retro-Bot itself, without
   waiting for the card prompt.

@@ -18,6 +18,18 @@ describe("LlmClient.createNull", () => {
     expect(narrative).toBe("The team shipped faster and morale is high.");
   });
 
+  test("supports configuring a sequence of completions for successive calls", async () => {
+    const client = LlmClient.createNull({ completion: ["Score: 4", "Score: 2"] });
+
+    const first = await client.complete("Score retro one");
+    const second = await client.complete("Score retro two");
+    const third = await client.complete("Score retro three");
+
+    expect(first).toBe("Score: 4");
+    expect(second).toBe("Score: 2");
+    expect(third).toBe("Score: 2");
+  });
+
   test("sends the prompt as a chat completion request", async () => {
     const client = LlmClient.createNull();
 

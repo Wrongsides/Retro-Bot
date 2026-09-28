@@ -2,7 +2,7 @@ import { config } from "../config.js";
 import { HttpClient, type ResponseMap } from "./httpClient.js";
 
 export interface LlmClientNullOptions {
-  completion?: string;
+  completion?: string | string[];
   failure?: { status: number };
   emptyResponse?: boolean;
 }
@@ -21,6 +21,13 @@ function defaultNullResponses(options: LlmClientNullOptions): ResponseMap {
     return { "POST /chat/completions": { body: { choices: [] } satisfies ChatCompletionResponseBody } };
   }
   const completion = options.completion ?? "This retro reflected steady progress across the team.";
+  if (Array.isArray(completion)) {
+    return {
+      "POST /chat/completions": completion.map((content) => ({
+        body: { choices: [{ message: { content } }] } satisfies ChatCompletionResponseBody,
+      })),
+    };
+  }
   return {
     "POST /chat/completions": {
       body: { choices: [{ message: { content: completion } }] } satisfies ChatCompletionResponseBody,

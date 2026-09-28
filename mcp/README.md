@@ -34,6 +34,7 @@ pattern) may be added later to front this server for a Teams bot.
 | `github_search_examples` | read | Search the GitHub codebase for real code matching a query |
 | `retro_summary` | read + write | Generate a warm narrative summary (via an LLM) of the latest retro's four columns, mood board and experiment tracking box, and create a Jira ticket (searching first to avoid duplicates) for each action item not already tracked. Fails closed (returns an error, no partial output) if the LLM call fails |
 | `retro_github_examples` | read | Search GitHub for real code and commits matching items raised in the "What should we do differently?" and "Action items" columns of the latest retro (the LLM turns each item into a concise search query and filters the raw results for relevance). Reports, per item, if GitHub's search index is still building rather than silently showing "no examples found" |
+| `retro_sentiment_trend` | read | Use an LLM to score team sentiment (1-5) for each of the most recent retros on the board, from every column plus the mood board, and summarise the trend across them. If scoring a retro fails, that retro is flagged rather than dropping the whole trend |
 | `retro_feedback` | write | Record a 1-5 star rating (with optional comment) of Retro-Bot itself, stored in a filesystem-backed feedback store |
 | `retro_feedback_summary` | read | Report the average star rating and most recent comments from the feedback store |
 
@@ -70,14 +71,16 @@ realistic in-memory sample data and "creates" are tracked in-process for the dem
 `retro_summary` calls an LLM to turn the retro's raw sticky notes, mood reactions and
 experiment tracking box into a short narrative, rather than a literal list of post-its.
 `retro_github_examples` also calls an LLM, to turn each retro item into a concise GitHub
-search query and to filter the raw search results for relevance. By default these run
+search query and to filter the raw search results for relevance. `retro_sentiment_trend`
+calls an LLM once per retro (to score 1-5 sentiment from its columns and mood board) plus
+once more for an overall trend narrative across the scored retros. By default these run
 against a **local Ollama instance** — GitHub Models (the original default) was fully retired
 in July 2026, so there's no free hosted option to fall back to. With `USE_NULL_CLIENTS=true`
 (default) canned output is returned instead of calling a real LLM. If the LLM call fails,
 `retro_summary` fails closed — it returns an error rather than falling back to a
-partial/literal narrative. `retro_github_examples` degrades gracefully instead: if the LLM
-call fails for a given retro item, it falls back to a plain-text search query and skips
-relevance filtering for that item, rather than failing the whole tool call.
+partial/literal narrative. `retro_github_examples` and `retro_sentiment_trend` degrade
+gracefully instead: if the LLM call fails for a given retro item/retro, that item/retro is
+flagged with a note rather than failing the whole tool call.
 
 ### `retro_github_examples` searches both code and commits
 
@@ -94,6 +97,23 @@ rather than an error. When that happens for a given retro item, `retro_github_ex
 flags that item with a clear "Couldn't be checked — GitHub's code search index for this
 repository is still building. Try again shortly." note instead of silently reporting "no
 examples found", so it's never mistaken for a genuine no-match.
+
+### `retro_sentiment_trend` scores mood across recent retros
+
+`retro_sentiment_trend` finds the most recent retro outer frames on the board (5 by
+default, configurable via the `count` input), and for each one asks the LLM to score
+team sentiment 1-5 from every column plus the mood board, with a one-line reason. It
+then asks the LLM once more for a short narrative describing the trend across those
+scores (e.g. "sentiment dipped after the on-call incident before recovering"). The
+narrative is only requested when at least two retros were successfully scored.
+
+If scoring a given retro fails (LLM error or an unparseable response), that retro is
+flagged inline — `"Couldn't be scored — sentiment analysis failed for this retro."` —
+rather than dropping it silently or failing the whole tool call, so a single bad LLM
+response doesn't hide the trend for every other retro.
+
+The Teams bot's `"sentiment trend"` command also renders the scores as a simple
+Adaptive Card bar chart (one bar per retro), in addition to the plain-text tool output.
 
 **Local dev with Ollama (default):** `LlmClient` POSTs to `{LLM_BASE_URL}/chat/completions`
 using the standard OpenAI chat-completions shape, which [Ollama's OpenAI-compatible

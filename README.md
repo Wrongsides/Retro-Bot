@@ -46,7 +46,13 @@ Teams client ⇄ Azure Bot / Bot Framework ⇄ teams (MCP client) ⇄ mcp (MCP s
 - **`retro_github_examples`** — a standalone tool (and Teams `github examples` command) that
   searches the GitHub codebase for real code examples matching the problems and action items
   raised in the latest retro, using the same LLM to turn each item into a search query and
-  filter results for relevance. Fails closed if the LLM call fails.
+  filter results for relevance. Degrades gracefully per item if the LLM call fails, rather
+  than failing the whole tool call.
+- **`retro_sentiment_trend`** — a standalone tool (and Teams `sentiment trend` command,
+  rendered as a bar-chart Adaptive Card) that uses the LLM to score team sentiment (1-5) for
+  each of the most recent retros on the board, from every column plus the mood board, and
+  summarises the trend across them. Degrades per-retro rather than failing closed if scoring
+  one retro fails.
 - **`retro_feedback`** — lets users rate Retro-Bot itself (1-5 stars, optional comment),
   recorded to a simple filesystem-backed feedback store as a first step towards tracking
   satisfaction over time.
